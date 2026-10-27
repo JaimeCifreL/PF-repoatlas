@@ -10,7 +10,7 @@ const RepoGraph3D = dynamic(
   { ssr: false }
 );
 import { RepoGraph2D } from "@/components/graph/RepoGraph2D";
-
+import { calculateGraphMetrics } from "@/lib/graph-metrics";
 import { RepositorySearch } from "@/components/repository/RepositorySearch";
 import {
   files as sampleFiles,
@@ -35,6 +35,11 @@ export default function Home() {
   const graphIndex = useMemo(
     () => createGraphIndex({ files, connections }),
     [files, connections]
+  );
+
+  const architectureMetrics = useMemo(
+    () => calculateGraphMetrics(graphIndex),
+    [graphIndex]
   );
 
   const impact = useMemo(
@@ -174,9 +179,18 @@ export default function Home() {
             {/* METRICS */}
             <div className="mt-7 grid grid-cols-3 gap-3">
               {[
-                { title: "FILES", value: files.length.toString() },
-                { title: "CONNECTIONS", value: connections.length.toString() },
-                { title: "MODULE TYPES", value: "03" },
+                {
+                  title: "FILES",
+                  value: architectureMetrics.files.toString(),
+                },
+                {
+                  title: "CONNECTIONS",
+                  value: architectureMetrics.connections.toString(),
+                },
+                {
+                  title: "CYCLE GROUPS",
+                  value: architectureMetrics.cycleGroups.length.toString(),
+                },
               ].map((metric) => (
                 <div
                   key={metric.title}
