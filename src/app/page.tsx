@@ -10,14 +10,13 @@ const RepoGraph3D = dynamic(
 );
 
 import { ReactFlow, Background, BackgroundVariant, Controls, type Edge,} from "@xyflow/react";
-import { GitBranch, FileCode2, ArrowUpRight,} from "lucide-react";
 import { RepositorySearch } from "@/components/repository/RepositorySearch";
 import {
   files as sampleFiles,
   connections as sampleConnections,
   colors,
 } from "@/lib/sample-repository";
-
+import { FileInspector } from "@/components/inspector/FileInspector";
 import type { AnalysisResult } from "@/lib/github-analyzer";
 import RepoFileNodeView, {
   type RepoFileNode,
@@ -38,16 +37,6 @@ export default function Home() {
 
   const files = analysis?.files ?? sampleFiles;
   const connections = analysis?.connections ?? sampleConnections;
-
-  const selectedFile = files.find((file) => file.id === selectedId);
-
-  const imports = connections
-    .filter(([source]) => source === selectedId)
-    .map(([, target]) => files.find((file) => file.id === target)?.name);
-
-  const dependents = connections
-    .filter(([, target]) => target === selectedId)
-    .map(([source]) => files.find((file) => file.id === source)?.name);
   
   const nodes: RepoFileNode[] = files.map((file) => {
     const degree = connections.filter(
@@ -322,90 +311,16 @@ export default function Home() {
             </div>
           </main>
 
-          {/* INSPECTOR */}
-          <aside className="border-t border-[#263442] bg-[#0c1420] p-5 xl:border-l xl:border-t-0">
+          
+          {/* FILE INSPECTOR */}
+          <FileInspector
+            selectedId={selectedId}
+            files={files}
+            connections={connections}
+            repositoryName={analysis?.repository}
+            onSelect={setSelectedId}
+          />
 
-            <div className="mb-6 flex items-center justify-between border-b border-[#243342] pb-4">
-              <div className="font-mono text-[11px] tracking-widest text-[#90a7b7]">
-                FILE INSPECTOR
-              </div>
-              <FileCode2 size={17} className="text-[#658093]" />
-            </div>
-
-            {selectedFile ? (
-              <div>
-                <div className="mb-4 inline-flex rounded-md border border-[#195b52] bg-[#12332d] px-2 py-1 font-mono text-[10px] text-[#49ddbd]">
-                  SELECTED NODE
-                </div>
-
-                <h2 className="break-all font-mono text-lg font-semibold text-[#eaf4f5]">
-                  {selectedFile.name}
-                </h2>
-
-                <div className="mt-2 break-all font-mono text-[11px] leading-relaxed text-[#738c9d]">
-                  {selectedFile.path}
-                </div>
-
-                <div className="my-6 h-px bg-[#263443]" />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-[#263443] bg-[#111d2a] p-3">
-                    <div className="font-mono text-[10px] text-[#7990a2]">
-                      IMPORTS
-                    </div>
-                    <div className="mt-2 font-mono text-xl text-[#2cdbb7]">
-                      {imports.length}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-[#263443] bg-[#111d2a] p-3">
-                    <div className="font-mono text-[10px] text-[#7990a2]">
-                      DEPENDENTS
-                    </div>
-                    <div className="mt-2 font-mono text-xl text-[#e5b06a]">
-                      {dependents.length}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  <h3 className="mb-3 font-mono text-[11px] tracking-wider text-[#89a1b3]">
-                    DIRECT IMPORTS
-                  </h3>
-                  {imports.length ? imports.map((name) => (
-                    <div key={name} className="mb-2 flex items-center gap-2 rounded border border-[#243442] bg-[#111d29] px-3 py-2 font-mono text-[11px] text-[#bed1db]">
-                      <ArrowUpRight size={13} className="shrink-0 text-[#2bdbb3]" />
-                      <span className="break-all">{name}</span>
-                    </div>
-                  )) : (
-                    <p className="text-xs text-[#698092]">No direct imports.</p>
-                  )}
-                </div>
-
-                <div className="mt-7">
-                  <h3 className="mb-3 font-mono text-[11px] tracking-wider text-[#89a1b3]">
-                    REFERENCED BY
-                  </h3>
-                  {dependents.length ? dependents.map((name) => (
-                    <div key={name} className="mb-2 flex items-center gap-2 rounded border border-[#243442] bg-[#111d29] px-3 py-2 font-mono text-[11px] text-[#bed1db]">
-                      <GitBranch size={13} className="shrink-0 text-[#e4a66d]" />
-                      <span className="break-all">{name}</span>
-                    </div>
-                  )) : (
-                    <p className="text-xs text-[#698092]">No incoming references.</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-[#304455] p-6 text-center text-sm text-[#7890a2]">
-                Select a file on the graph to inspect its connections.
-              </div>
-            )}
-
-            <div className="mt-8 border-t border-[#263443] pt-5 font-mono text-[10px] leading-relaxed text-[#61798b]">
-              PREVIEW BUILD — Relationships currently use sample data.
-              GitHub repository analysis will be added later.
-            </div>
-          </aside>
         </div>
       </div>
     </div>
