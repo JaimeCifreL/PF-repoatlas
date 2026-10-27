@@ -11,7 +11,7 @@ const RepoGraph3D = dynamic(
 
 import { ReactFlow, Background, BackgroundVariant, Controls, type Edge,} from "@xyflow/react";
 import { GitBranch, FileCode2, ArrowUpRight,} from "lucide-react";
-
+import { RepositorySearch } from "@/components/repository/RepositorySearch";
 import {
   files as sampleFiles,
   connections as sampleConnections,
@@ -219,51 +219,14 @@ export default function Home() {
             </div>
 
             {/* REPOSITORY SEARCH */}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleAnalyze();
-              }}
-              className="mt-7 flex flex-col gap-3 rounded-lg border border-[#263947] bg-[#101b27] p-3 sm:flex-row"
-            >
-              <input
-                type="url"
-                required
-                aria-label="GitHub repository URL"
-                value={repositoryUrl}
-                onChange={(event) => setRepositoryUrl(event.target.value)}
-                placeholder="https://github.com/owner/repository"
-                className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-xs text-[#e7f2f5] outline-none"
-              />
-
-              <button
-                type="submit"
-                disabled={isAnalyzing}
-                className="cursor-pointer rounded-md border border-[#278c78] bg-[#145b4b] px-5 py-3 font-mono text-xs font-semibold text-[#a4ffdd] hover:bg-[#197561] disabled:opacity-50"
-              >
-                {isAnalyzing ? "ANALYZING..." : "ANALYZE REPO"}
-              </button>
-            </form>
-
-            {analysisError && (
-              <p role="alert" className="mt-3 text-xs text-red-400">
-                {analysisError}
-              </p>
-            )}
-
-            {analysis && (
-              <div className="mt-3 font-mono text-xs text-[#62e6c0]">
-                {analysis.repository} · {analysis.analyzedFiles} files ·{" "}
-                {analysis.connections.length} connections
-
-                {analysis.warnings.map((warning) => (
-                  <p key={warning} className="mt-2 text-amber-300">
-                    {warning}
-                  </p>
-                ))}
-              </div>
-            )}
-
+            <RepositorySearch
+              repositoryUrl={repositoryUrl}
+              onUrlChange={setRepositoryUrl}
+              onAnalyze={handleAnalyze}
+              isAnalyzing={isAnalyzing}
+              analysisError={analysisError}
+              analysis={analysis}
+            />
 
             {/* METRICS */}
             <div className="mt-7 grid grid-cols-3 gap-3">
