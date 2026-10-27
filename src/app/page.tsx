@@ -8,23 +8,16 @@ const RepoGraph3D = dynamic(
   () => import("@/components/graph/RepoGraph3D"),
   { ssr: false }
 );
+import { RepoGraph2D } from "@/components/graph/RepoGraph2D";
 
-import { ReactFlow, Background, BackgroundVariant, Controls, type Edge,} from "@xyflow/react";
 import { RepositorySearch } from "@/components/repository/RepositorySearch";
 import {
   files as sampleFiles,
   connections as sampleConnections,
-  colors,
 } from "@/lib/sample-repository";
 import { FileInspector } from "@/components/inspector/FileInspector";
 import type { AnalysisResult } from "@/lib/github-analyzer";
-import RepoFileNodeView, {
-  type RepoFileNode,
-} from "@/components/graph/RepoFileNode";
-import { layoutGraph } from "@/lib/graph-layout";
-const nodeTypes = {
-  repoFile: RepoFileNodeView,
-};
+
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
@@ -38,60 +31,7 @@ export default function Home() {
   const files = analysis?.files ?? sampleFiles;
   const connections = analysis?.connections ?? sampleConnections;
   
-  const nodes: RepoFileNode[] = files.map((file) => {
-    const degree = connections.filter(
-      ([source, target]) =>
-        source === file.id || target === file.id
-    ).length;
-
-    const size = 84 + Math.min(degree, 5) * 10;
-
-    const isSelected = selectedId === file.id;
-
-    const isRelated =
-      !selectedId ||
-      isSelected ||
-      connections.some(
-        ([source, target]) =>
-          (source === selectedId && target === file.id) ||
-          (target === selectedId && source === file.id)
-      );
-      
-
-    return {
-      id: file.id,
-      type: "repoFile",
-      position: {
-        x: 0,
-        y: 0,
-      },
-      data: {
-        label: file.name,
-        color: colors[file.kind],
-        size,
-        degree,
-        isSelected,
-        isRelated,
-      },
-    };
-  });
-
-  const edges: Edge[] = connections.map(([source, target], index) => {
-    const highlighted = source === selectedId || target === selectedId;
-
-    return {
-      id: `edge-${index}`,
-      source,
-      target,
-      type: "default",
-      animated: highlighted,
-      style: {
-        stroke: highlighted ? "#30e6c1" : "#365566",
-        strokeWidth: highlighted ? 2 : 1.2,
-        opacity: selectedId && !highlighted ? 0.35 : 0.9,
-      },
-    };
-  });
+  
 
   async function handleAnalyze() {
     if (!repositoryUrl.trim() || isAnalyzing) return;
@@ -136,7 +76,6 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
 
 
-  const layoutedNodes = layoutGraph(nodes, edges);
 
   return (
     <div className="min-h-screen bg-[#080d14] text-[#e8eef5] lg:flex">
@@ -260,29 +199,15 @@ export default function Home() {
                     onSelect={setSelectedId}
                   />
                 ) : (
-                  <ReactFlow
+                  
+                  <RepoGraph2D
                     key={analysis?.repository ?? "sample"}
-                    nodes={layoutedNodes}
-                    edges={edges}
-                    nodeTypes={nodeTypes}
-                    onNodeClick={(_, node) => setSelectedId(node.id)}
-                    onPaneClick={() => setSelectedId(null)}
-                    nodesDraggable={false}
-                    nodesConnectable={false}
-                    elementsSelectable={true}
-                    fitView
-                    fitViewOptions={{ padding: 0.2 }}
-                    minZoom={0.05}
-                    maxZoom={2}
-                  >
-                    <Background
-                      variant={BackgroundVariant.Dots}
-                      color="#263747"
-                      gap={24}
-                      size={1}
-                    />
-                    <Controls showInteractive={false} />
-                  </ReactFlow>
+                    files={files}
+                    connections={connections}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                  />
+
                 )}
               </div>
 
