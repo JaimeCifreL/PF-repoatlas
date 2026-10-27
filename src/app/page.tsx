@@ -1,6 +1,14 @@
 "use client";
 
 import { useState } from "react";
+
+import dynamic from "next/dynamic";
+
+const RepoGraph3D = dynamic(
+  () => import("@/components/graph/RepoGraph3D"),
+  { ssr: false }
+);
+
 import { ReactFlow, Background, BackgroundVariant, Controls, type Edge,} from "@xyflow/react";
 import { GitBranch, Network, LayoutDashboard, FolderTree, Activity, FileCode2, ArrowUpRight,} from "lucide-react";
 
@@ -22,9 +30,7 @@ const nodeTypes = {
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
 
-  const [repositoryUrl, setRepositoryUrl] = useState(
-    "https://github.com/JaimeCifreL/scopecheck-ai"
-  );
+  const [repositoryUrl, setRepositoryUrl] = useState("");
 
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -138,6 +144,8 @@ export default function Home() {
     }
   }
 
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+
 
   const layoutedNodes = layoutGraph(nodes, edges);
 
@@ -241,6 +249,33 @@ export default function Home() {
                 <span className="h-2 w-2 rounded-full bg-[#28d8ae]" />
                 GRAPH READY
               </div>
+              
+              <div className="flex rounded-lg border border-[#304453] bg-[#111d29] p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("2d")}
+                  className={`cursor-pointer rounded-md px-4 py-2 font-mono text-xs ${
+                    viewMode === "2d"
+                      ? "bg-[#1c6253] text-[#a4ffe4]"
+                      : "text-[#829bad] hover:text-white"
+                  }`}
+                >
+                  2D
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("3d")}
+                  className={`cursor-pointer rounded-md px-4 py-2 font-mono text-xs ${
+                    viewMode === "3d"
+                      ? "bg-[#1c6253] text-[#a4ffe4]"
+                      : "text-[#829bad] hover:text-white"
+                  }`}
+                >
+                  3D
+                </button>
+              </div>
+
             </div>
 
             {/* REPOSITORY SEARCH */}
@@ -324,29 +359,39 @@ export default function Home() {
               </div>
 
               <div className="absolute inset-0">
-                <ReactFlow
-                  key={analysis?.repository ?? "sample"}
-                  nodes={layoutedNodes}
-                  edges={edges}
-                  nodeTypes={nodeTypes}
-                  onNodeClick={(_, node) => setSelectedId(node.id)}
-                  onPaneClick={() => setSelectedId(null)}
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable={true}
-                  fitView
-                  fitViewOptions={{ padding: 0.2 }}
-                  minZoom={0.05}
-                  maxZoom={2}
-                >
-                  <Background
-                    variant={BackgroundVariant.Dots}
-                    color="#263747"
-                    gap={24}
-                    size={1}
+                {viewMode === "3d" ? (
+                  <RepoGraph3D
+                    key={analysis?.repository ?? "sample"}
+                    files={files}
+                    connections={connections}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
                   />
-                  <Controls showInteractive={false} />
-                </ReactFlow>
+                ) : (
+                  <ReactFlow
+                    key={analysis?.repository ?? "sample"}
+                    nodes={layoutedNodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    onNodeClick={(_, node) => setSelectedId(node.id)}
+                    onPaneClick={() => setSelectedId(null)}
+                    nodesDraggable={false}
+                    nodesConnectable={false}
+                    elementsSelectable={true}
+                    fitView
+                    fitViewOptions={{ padding: 0.2 }}
+                    minZoom={0.05}
+                    maxZoom={2}
+                  >
+                    <Background
+                      variant={BackgroundVariant.Dots}
+                      color="#263747"
+                      gap={24}
+                      size={1}
+                    />
+                    <Controls showInteractive={false} />
+                  </ReactFlow>
+                )}
               </div>
 
               <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-lg border border-[#263544] bg-[#101924]/95 px-4 py-3">

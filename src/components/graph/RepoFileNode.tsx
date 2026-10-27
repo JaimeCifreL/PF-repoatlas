@@ -8,8 +8,6 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 
-import { FileCode2 } from "lucide-react";
-
 export type RepoFileNode = Node<
   {
     label: string;
@@ -25,100 +23,43 @@ export type RepoFileNode = Node<
 export default function RepoFileNodeView({
   data,
 }: NodeProps<RepoFileNode>) {
-  const {
-    label,
-    color,
-    size,
-    degree,
-    isSelected,
-    isRelated,
-  } = data;
-
   return (
     <div
-      className="group relative flex items-center justify-center transition-opacity duration-200"
+      className="relative flex flex-col items-center justify-center rounded-full text-center transition-all duration-200"
       style={{
-        width: size,
-        height: size,
-        opacity: isRelated ? 1 : 0.35,
+        width: data.size,
+        height: data.size,
+        background: data.isSelected
+          ? "#174338"
+          : "#132431",
+        border: `2px solid ${
+          data.isSelected ? "#94ffe5" : data.color
+        }`,
+        boxShadow: data.isSelected
+          ? "0 0 0 6px #23d1ad15, 0 0 38px #23d1ad50"
+          : "0 0 18px #00000060",
+        opacity: data.isRelated ? 1 : 0.55,
       }}
-      title={label}
+      title={data.label}
     >
-      {/* Invisible connection points */}
+      {/* Punto de entrada invisible */}
       <Handle
         type="target"
         position={Position.Left}
         style={{ opacity: 0 }}
       />
 
-      {/* Outer halo */}
-      <div
-        className="pointer-events-none absolute -inset-2 rounded-full border transition-all duration-200"
-        style={{
-          borderColor: isSelected
-            ? `${color}99`
-            : `${color}22`,
-          boxShadow: isSelected
-            ? `0 0 30px ${color}40`
-            : "none",
-        }}
-      />
+      {/* Nombre del archivo */}
+      <span className="max-w-[90%] break-all px-2 font-mono text-[10px] font-semibold leading-tight text-[#e8f4f3]">
+        {data.label}
+      </span>
 
-      {/* Main node */}
-      <div
-        className="relative flex h-full w-full flex-col items-center justify-center rounded-full border-2 transition-all duration-200"
-        style={{
-          borderColor: isSelected ? "#a2ffe7" : color,
-          background:
-            "radial-gradient(circle at 35% 25%, #203849 0%, #111e2a 75%)",
-          boxShadow: isSelected
-            ? `0 0 35px ${color}45, inset 0 0 20px #00000055`
-            : "0 8px 25px #00000065",
-        }}
-      >
-        {/* Node status light */}
-        <div
-          className="absolute right-[16%] top-[17%] h-1.5 w-1.5 rounded-full"
-          style={{
-            backgroundColor: color,
-            boxShadow: `0 0 9px ${color}`,
-          }}
-        />
+      {/* Número de conexiones */}
+      <span className="mt-2 font-mono text-[9px] text-[#82a2b1]">
+        {data.degree} LINKS
+      </span>
 
-        {/* File icon */}
-        <FileCode2
-          size={21}
-          strokeWidth={1.5}
-          style={{ color }}
-        />
-
-        {/* Connection count */}
-        <div className="mt-2 font-mono text-[14px] font-semibold leading-none text-[#eaf5f7]">
-          {degree}
-        </div>
-
-        <div className="mt-1 font-mono text-[8px] tracking-[0.12em] text-[#7792a5]">
-          LINKS
-        </div>
-      </div>
-
-      {/* File name */}
-      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+12px)] w-[190px] -translate-x-1/2 text-center">
-        <div
-          className="mx-auto w-fit max-w-full truncate rounded-md border bg-[#0d1925]/95 px-2 py-1.5 font-mono text-[10px] font-medium"
-          style={{
-            borderColor: isSelected
-              ? `${color}77`
-              : "#253a4a",
-            color: isSelected
-              ? "#eafff8"
-              : "#a8c0ce",
-          }}
-        >
-          {label}
-        </div>
-      </div>
-
+      {/* Punto de salida invisible */}
       <Handle
         type="source"
         position={Position.Right}
