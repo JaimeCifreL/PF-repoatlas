@@ -16,8 +16,7 @@ import {
   connections as sampleConnections,
 } from "@/lib/sample-repository";
 import { FileInspector } from "@/components/inspector/FileInspector";
-import type { AnalysisResult } from "@/lib/github-analyzer";
-
+import type { AnalysisResult } from "@/types/repository";
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");

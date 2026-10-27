@@ -1,6 +1,10 @@
 
 import { posix as path } from "node:path";
 import ts from "typescript";
+import type {
+  RepoFile,
+  AnalysisResult,
+} from "@/types/repository";
 
 type GitHubRepository = {
   full_name: string;
@@ -16,23 +20,6 @@ type GitHubTree = {
   }[];
 };
 
-export type AnalyzedFile = {
-  id: string;
-  name: string;
-  path: string;
-  kind: "entry" | "feature" | "shared";
-};
-
-export type AnalysisResult = {
-  repository: string;
-  branch: string;
-  files: AnalyzedFile[];
-  connections: [string, string][];
-  totalCodeFiles: number;
-  analyzedFiles: number;
-  partial: boolean;
-  warnings: string[];
-};
 
 export class AnalysisError extends Error {
   constructor(
@@ -230,7 +217,7 @@ function resolveImport(
 
 function classifyFile(
   filename: string
-): AnalyzedFile["kind"] {
+): RepoFile["kind"] {
   const name = path.basename(filename);
 
   if (/^(page|index|main|app)\.[cm]?[jt]sx?$/i.test(name)) {
@@ -277,7 +264,7 @@ export async function analyzeGitHubRepository(
   const selected = eligible.slice(0, MAX_FILES);
   const available = new Set(selected.map((item) => item.path));
 
-  const files: AnalyzedFile[] = selected.map((item) => ({
+  const files: RepoFile[] = selected.map((item) => ({
     id: item.path,
     path: item.path,
     name: path.basename(item.path),

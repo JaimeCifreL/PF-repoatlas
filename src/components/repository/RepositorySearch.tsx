@@ -2,7 +2,7 @@
 "use client";
 
 import { GitBranch, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import type { AnalysisResult } from "@/lib/github-analyzer";
+import type { AnalysisResult } from "@/types/repository";
 
 type RepositorySearchProps = {
   repositoryUrl: string;
