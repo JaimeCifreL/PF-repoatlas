@@ -9,6 +9,10 @@ import {
   CSS2DObject,
   CSS2DRenderer,
 } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import {
+  connectionKey,
+  type ImpactResult,
+} from "@/lib/graph-impact";
 
 type RepoFile = {
   id: string;
@@ -21,6 +25,7 @@ type Props = {
   connections: readonly (readonly [string, string])[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  impact?: ImpactResult | null;
 };
 
 const COLORS = {
@@ -46,6 +51,7 @@ export default function RepoGraph3D({
   connections,
   selectedId,
   onSelect,
+  impact,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
@@ -195,6 +201,20 @@ export default function RepoGraph3D({
     );
   }
 
+  function isImpactLink(
+  source: unknown,
+  target: unknown
+): boolean {
+  if (!impact) return false;
+
+  return impact.highlightedEdges.has(
+    connectionKey(
+      endpointId(source),
+      endpointId(target)
+    )
+  );
+}
+
   return (
     <div
       ref={containerRef}
@@ -222,6 +242,22 @@ export default function RepoGraph3D({
           nodeColor={(node) => {
             const id = String(node.id);
 
+            if (impact) {
+              if (id === impact.selectedId) {
+                return "#31e0b9";
+              }
+
+              if (impact.depthById.get(id) === 1) {
+                return "#eda65d";
+              }
+
+              if (impact.depthById.has(id)) {
+                return "#ae92f1";
+              }
+
+              return "#293c4a";
+            }
+
             if (selectedId && !related.has(id)) {
               return "#293c4a";
             }
@@ -232,23 +268,41 @@ export default function RepoGraph3D({
 
             return fileColors.get(id) ?? "#23d1ad";
           }}
-          linkColor={(link) =>
-            selectedId === null
+                    
+          linkColor={(link) => {
+            if (impact) {
+              if (!isImpactLink(link.source, link.target)) {
+                return "#263847";
+              }
+
+              const depth = impact.depthById.get(
+                endpointId(link.source)
+              );
+
+              return depth === 1
+                ? "#eda65d"
+                : "#ae92f1";
+            }
+
+            return selectedId === null
               ? "#426577"
               : isSelectedLink(link.source, link.target)
                 ? "#36edc2"
-                : "#243744"
-          }
+                : "#243744";
+          }}
+
           linkWidth={(link) =>
-            isSelectedLink(link.source, link.target)
-              ? 2
-              : 0.7
+            impact
+              ? isImpactLink(link.source, link.target) ? 2.5 : 0.4
+              : isSelectedLink(link.source, link.target) ? 2 : 0.7
           }
           linkOpacity={0.75}
           linkDirectionalArrowLength={3}
           linkDirectionalArrowRelPos={0.9}
           linkDirectionalParticles={(link) =>
-            isSelectedLink(link.source, link.target) ? 2 : 0
+            impact
+              ? 0
+              : isSelectedLink(link.source, link.target) ? 2 : 0
           }
           linkDirectionalParticleSpeed={0.005}
           linkDirectionalParticleWidth={2}

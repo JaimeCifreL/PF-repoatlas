@@ -16,7 +16,10 @@ import RepoFileNodeView, {
 } from "./RepoFileNode";
 
 import { layoutGraph } from "@/lib/graph-layout";
-
+import {
+  connectionKey,
+  type ImpactResult,
+} from "@/lib/graph-impact";
 import type {
   RepoFile,
   RepoConnection,
@@ -27,6 +30,7 @@ type Props = {
   connections: readonly RepoConnection[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  impact: ImpactResult | null;
 };
 
 const nodeTypes = {
@@ -44,6 +48,7 @@ export function RepoGraph2D({
   connections,
   selectedId,
   onSelect,
+  impact,
 }: Props) {
 
   // 1. Calcular las conexiones de cada archivo.
@@ -124,39 +129,85 @@ export function RepoGraph2D({
   }, [selectedId, connections]);
 
   // 5. Actualizar la apariencia sin cambiar posiciones.
-  const nodes = useMemo<RepoFileNode[]>(() => {
-    return positionedNodes.map((node) => ({
-      ...node,
-      data: {
-        ...node.data,
-        isSelected: node.id === selectedId,
-        isRelated:
-          selectedId === null || relatedIds.has(node.id),
-      },
-    }));
-  }, [positionedNodes, selectedId, relatedIds]);
+  
+    const nodes = useMemo<RepoFileNode[]>(() => {
+    return positionedNodes.map((node) => {
+        let impactLevel:
+        | "source"
+        | "direct"
+        | "indirect"
+        | null = null;
+
+        if (impact) {
+        if (node.id === impact.selectedId) {
+            impactLevel = "source";
+        } else if (impact.depthById.get(node.id) === 1) {
+            impactLevel = "direct";
+        } else if (impact.depthById.has(node.id)) {
+            impactLevel = "indirect";
+        }
+        }
+
+        return {
+        ...node,
+        data: {
+            ...node.data,
+            isSelected: node.id === selectedId,
+            isRelated: impact
+            ? impactLevel !== null
+            : selectedId === null || relatedIds.has(node.id),
+            impactLevel,
+        },
+        };
+    });
+    }, [positionedNodes, selectedId, relatedIds, impact]);
+
 
   // 6. Destacar las conexiones seleccionadas.
-  const edges = useMemo<Edge[]>(() => {
+  
+    const edges = useMemo<Edge[]>(() => {
     return baseEdges.map((edge) => {
-      const highlighted =
+        const selectedConnection =
         edge.source === selectedId ||
         edge.target === selectedId;
 
-      return {
+        if (impact) {
+        const inImpactPath = impact.highlightedEdges.has(
+            connectionKey(edge.source, edge.target)
+        );
+
+        const depth = impact.depthById.get(edge.source);
+
+        return {
+            ...edge,
+            animated: false,
+            style: {
+            stroke: inImpactPath
+                ? depth === 1
+                ? "#eda65d"
+                : "#ae92f1"
+                : "#293947",
+            strokeWidth: inImpactPath ? 2.7 : 0.8,
+            opacity: inImpactPath ? 1 : 0.12,
+            },
+        };
+        }
+
+        return {
         ...edge,
-        animated: highlighted,
+        animated: selectedConnection,
         style: {
-          stroke: highlighted ? "#30e6c1" : "#365566",
-          strokeWidth: highlighted ? 2 : 1.2,
-          opacity:
-            selectedId !== null && !highlighted
-              ? 0.25
-              : 0.9,
+            stroke: selectedConnection ? "#30e6c1" : "#365566",
+            strokeWidth: selectedConnection ? 2 : 1.2,
+            opacity:
+            selectedId !== null && !selectedConnection
+                ? 0.25
+                : 0.9,
         },
-      };
+        };
     });
-  }, [baseEdges, selectedId]);
+    }, [baseEdges, selectedId, impact]);
+
 
   return (
     <ReactFlow

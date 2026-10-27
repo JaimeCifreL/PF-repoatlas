@@ -6,6 +6,8 @@ import {
   FileCode2,
   GitBranch,
 } from "lucide-react";
+import { ImpactPanel } from "./ImpactPanel";
+import type { ImpactResult } from "@/lib/graph-impact";
 
 type FileRecord = {
   id: string;
@@ -14,11 +16,14 @@ type FileRecord = {
 };
 
 type FileInspectorProps = {
-  selectedId: string | null;
-  files: readonly FileRecord[];
-  connections: readonly (readonly [string, string])[];
-  repositoryName?: string | null;
-  onSelect: (id: string) => void;
+    selectedId: string | null;
+    files: readonly FileRecord[];
+    connections: readonly (readonly [string, string])[];
+    repositoryName?: string | null;
+    onSelect: (id: string) => void;
+    impact: ImpactResult | null;
+    onAnalyzeImpact: (id: string) => void;
+    onClearImpact: () => void;
 };
 
 export function FileInspector({
@@ -27,6 +32,9 @@ export function FileInspector({
   connections,
   repositoryName,
   onSelect,
+  impact,
+  onAnalyzeImpact,
+  onClearImpact,
 }: FileInspectorProps) {
 
   // Archivo seleccionado
@@ -65,6 +73,15 @@ export function FileInspector({
         />
       </div>
 
+      {impact && (
+        <ImpactPanel
+            impact={impact}
+            files={files}
+            onSelect={onSelect}
+            onClear={onClearImpact}
+        />
+        )}
+
       {selectedFile ? (
         <div>
 
@@ -80,6 +97,14 @@ export function FileInspector({
           <div className="mt-2 break-all font-mono text-[11px] leading-relaxed text-[#738c9d]">
             {selectedFile.path}
           </div>
+
+          <button
+                type="button"
+                onClick={() => onAnalyzeImpact(selectedFile.id)}
+                className="mt-5 w-full cursor-pointer rounded-lg border border-[#278e79] bg-[#134b40] px-4 py-3 font-mono text-[11px] font-semibold tracking-wider text-[#a4ffe1] transition-colors hover:bg-[#196858]"
+                >
+                ANALYZE IMPACT
+            </button>
 
           <div className="my-6 h-px bg-[#263443]" />
 

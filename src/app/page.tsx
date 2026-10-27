@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-
+import { useMemo, useState } from "react";
+import { createGraphIndex } from "@/lib/graph-core";
+import { analyzeImpact } from "@/lib/graph-impact";
 import dynamic from "next/dynamic";
 import { Sidebar } from "@/components/layout/Sidebar";
 const RepoGraph3D = dynamic(
@@ -20,6 +21,7 @@ import type { AnalysisResult } from "@/types/repository";
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
+  const [impactSourceId, setImpactSourceId] = useState<string | null>(null);
 
   const [repositoryUrl, setRepositoryUrl] = useState("");
 
@@ -30,6 +32,19 @@ export default function Home() {
   const files = analysis?.files ?? sampleFiles;
   const connections = analysis?.connections ?? sampleConnections;
   
+  const graphIndex = useMemo(
+    () => createGraphIndex({ files, connections }),
+    [files, connections]
+  );
+
+  const impact = useMemo(
+    () =>
+      impactSourceId === null
+        ? null
+        : analyzeImpact(graphIndex, impactSourceId),
+    [graphIndex, impactSourceId]
+  );
+
   
 
   async function handleAnalyze() {
@@ -61,6 +76,7 @@ export default function Home() {
 
       setAnalysis(result);
       setSelectedId(null);
+      setImpactSourceId(null);
     } catch (error) {
       setAnalysisError(
         error instanceof Error
@@ -196,6 +212,7 @@ export default function Home() {
                     connections={connections}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
+                    impact={impact}
                   />
                 ) : (
                   
@@ -205,6 +222,7 @@ export default function Home() {
                     connections={connections}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
+                    impact={impact}
                   />
 
                 )}
@@ -243,6 +261,9 @@ export default function Home() {
             connections={connections}
             repositoryName={analysis?.repository}
             onSelect={setSelectedId}
+            impact={impact}
+            onAnalyzeImpact={setImpactSourceId}
+            onClearImpact={() => setImpactSourceId(null)}
           />
 
         </div>

@@ -16,6 +16,7 @@ export type RepoFileNode = Node<
     degree: number;
     isSelected: boolean;
     isRelated: boolean;
+    impactLevel?: "source" | "direct" | "indirect" | null;
   },
   "repoFile"
 >;
@@ -23,22 +24,50 @@ export type RepoFileNode = Node<
 export default function RepoFileNodeView({
   data,
 }: NodeProps<RepoFileNode>) {
+    
+    const impactColor =
+    data.impactLevel === "source"
+        ? "#31e0b9"
+        : data.impactLevel === "direct"
+        ? "#eda65d"
+        : data.impactLevel === "indirect"
+            ? "#ae92f1"
+            : null;
+
   return (
     <div
       className="relative flex flex-col items-center justify-center rounded-full text-center transition-all duration-200"
       style={{
+        
         width: data.size,
         height: data.size,
-        background: data.isSelected
-          ? "#174338"
-          : "#132431",
+        
+        background: impactColor
+        ? "#172c36"
+        : data.isSelected
+            ? "#174338"
+            : "#132431",
+
         border: `2px solid ${
-          data.isSelected ? "#94ffe5" : data.color
+        impactColor ??
+        (data.isSelected ? "#94ffe5" : data.color)
         }`,
-        boxShadow: data.isSelected
-          ? "0 0 0 6px #23d1ad15, 0 0 38px #23d1ad50"
-          : "0 0 18px #00000060",
-        opacity: data.isRelated ? 1 : 0.55,
+
+        boxShadow: impactColor
+        ? `0 0 26px ${impactColor}40`
+        : data.isSelected
+            ? "0 0 0 6px #23d1ad15, 0 0 38px #23d1ad50"
+            : "0 0 18px #00000060",
+
+        opacity: data.isRelated ? 1 : 0.18,
+
+        outline:
+        data.isSelected && data.impactLevel !== "source"
+            ? "2px solid #e0f5f6"
+            : "none",
+
+        outlineOffset: 3,
+
       }}
       title={data.label}
     >
