@@ -1,65 +1,37 @@
-
 "use client";
 
 import { useState } from "react";
+import { ReactFlow, Background, BackgroundVariant, Controls, type Edge,} from "@xyflow/react";
+import { GitBranch, Network, LayoutDashboard, FolderTree, Activity, FileCode2, ArrowUpRight,} from "lucide-react";
+
 import {
-  ReactFlow,
-  Background,
-  BackgroundVariant,
-  Controls,
-  type Node,
-  type Edge,
-} from "@xyflow/react";
-import {
-  GitBranch,
-  Network,
-  LayoutDashboard,
-  FolderTree,
-  Activity,
-  FileCode2,
-  ArrowUpRight,
-} from "lucide-react";
+  files as sampleFiles,
+  connections as sampleConnections,
+  colors,
+} from "@/lib/sample-repository";
 
-// Datos ficticios para desarrollar la interfaz.
-const files = [
-  { id: "page", name: "page.tsx", path: "src/app/page.tsx", x: 0, y: 180, kind: "entry" },
-  { id: "shell", name: "AppShell.tsx", path: "src/components/AppShell.tsx", x: 210, y: 30, kind: "feature" },
-  { id: "graph", name: "GraphCanvas.tsx", path: "src/components/GraphCanvas.tsx", x: 210, y: 170, kind: "feature" },
-  { id: "search", name: "RepositorySearch.tsx", path: "src/components/RepositorySearch.tsx", x: 210, y: 310, kind: "feature" },
-  { id: "sidebar", name: "Sidebar.tsx", path: "src/components/Sidebar.tsx", x: 420, y: -40, kind: "feature" },
-  { id: "inspector", name: "Inspector.tsx", path: "src/components/Inspector.tsx", x: 420, y: 100, kind: "feature" },
-  { id: "analyzer", name: "analyzer.ts", path: "src/lib/analyzer.ts", x: 420, y: 240, kind: "feature" },
-  { id: "github", name: "github.ts", path: "src/lib/github.ts", x: 630, y: 340, kind: "shared" },
-  { id: "types", name: "graph.ts", path: "src/types/graph.ts", x: 630, y: 200, kind: "shared" },
-  { id: "theme", name: "tokens.ts", path: "src/styles/tokens.ts", x: 630, y: 40, kind: "shared" },
-] as const;
-
-const connections = [
-  ["page", "shell"],
-  ["page", "graph"],
-  ["page", "search"],
-  ["shell", "sidebar"],
-  ["shell", "theme"],
-  ["graph", "inspector"],
-  ["graph", "analyzer"],
-  ["graph", "types"],
-  ["inspector", "types"],
-  ["inspector", "theme"],
-  ["sidebar", "theme"],
-  ["search", "github"],
-  ["search", "types"],
-  ["analyzer", "github"],
-  ["analyzer", "types"],
-] as const;
-
-const colors = {
-  entry: "#f2a36b",
-  feature: "#23d1ad",
-  shared: "#6ca9d9",
+import type { AnalysisResult } from "@/lib/github-analyzer";
+import RepoFileNodeView, {
+  type RepoFileNode,
+} from "@/components/graph/RepoFileNode";
+import { layoutGraph } from "@/lib/graph-layout";
+const nodeTypes = {
+  repoFile: RepoFileNodeView,
 };
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
+
+  const [repositoryUrl, setRepositoryUrl] = useState(
+    "https://github.com/JaimeCifreL/scopecheck-ai"
+  );
+
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const files = analysis?.files ?? sampleFiles;
+  const connections = analysis?.connections ?? sampleConnections;
 
   const selectedFile = files.find((file) => file.id === selectedId);
 
@@ -70,28 +42,44 @@ export default function Home() {
   const dependents = connections
     .filter(([, target]) => target === selectedId)
     .map(([source]) => files.find((file) => file.id === source)?.name);
+  
+  const nodes: RepoFileNode[] = files.map((file) => {
+    const degree = connections.filter(
+      ([source, target]) =>
+        source === file.id || target === file.id
+    ).length;
 
-  const nodes: Node[] = files.map((file) => ({
-    id: file.id,
-    position: { x: file.x, y: file.y },
-    data: { label: file.name },
-    style: {
-      background: selectedId === file.id ? "#15362f" : "#111e2b",
-      border: `1px solid ${
-        selectedId === file.id ? "#53f5d4" : colors[file.kind]
-      }`,
-      boxShadow:
-        selectedId === file.id
-          ? "0 0 24px #23d1ad35"
-          : "0 5px 20px #00000040",
-      borderRadius: 8,
-      color: "#eaf4f5",
-      fontSize: 11,
-      fontFamily: "monospace",
-      padding: "12px 8px",
-      width: 155,
-    },
-  }));
+    const size = 84 + Math.min(degree, 5) * 10;
+
+    const isSelected = selectedId === file.id;
+
+    const isRelated =
+      !selectedId ||
+      isSelected ||
+      connections.some(
+        ([source, target]) =>
+          (source === selectedId && target === file.id) ||
+          (target === selectedId && source === file.id)
+      );
+      
+
+    return {
+      id: file.id,
+      type: "repoFile",
+      position: {
+        x: 0,
+        y: 0,
+      },
+      data: {
+        label: file.name,
+        color: colors[file.kind],
+        size,
+        degree,
+        isSelected,
+        isRelated,
+      },
+    };
+  });
 
   const edges: Edge[] = connections.map(([source, target], index) => {
     const highlighted = source === selectedId || target === selectedId;
@@ -100,7 +88,7 @@ export default function Home() {
       id: `edge-${index}`,
       source,
       target,
-      type: "smoothstep",
+      type: "default",
       animated: highlighted,
       style: {
         stroke: highlighted ? "#30e6c1" : "#365566",
@@ -109,6 +97,49 @@ export default function Home() {
       },
     };
   });
+
+  async function handleAnalyze() {
+    if (!repositoryUrl.trim() || isAnalyzing) return;
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+
+    try {
+      const response = await fetch(
+        `/api/analyze?url=${encodeURIComponent(repositoryUrl.trim())}`
+      );
+
+      const payload: unknown = await response.json();
+
+      if (!response.ok) {
+        const message =
+          payload !== null &&
+          typeof payload === "object" &&
+          "error" in payload &&
+          typeof payload.error === "string"
+            ? payload.error
+            : `Error HTTP ${response.status}`;
+
+        throw new Error(message);
+      }
+
+      const result = payload as AnalysisResult;
+
+      setAnalysis(result);
+      setSelectedId(null);
+    } catch (error) {
+      setAnalysisError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo analizar el repositorio."
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+
+  const layoutedNodes = layoutGraph(nodes, edges);
 
   return (
     <div className="min-h-screen bg-[#080d14] text-[#e8eef5] lg:flex">
@@ -186,9 +217,6 @@ export default function Home() {
             <span>/</span>
             <span className="text-[#d0e0e9]">DEPENDENCY MAP</span>
           </div>
-          <div className="rounded-md border border-[#27524c] bg-[#102922] px-3 py-1.5 text-[10px] tracking-wider text-[#45d9b6]">
-            ● SAMPLE DATA
-          </div>
         </header>
 
         <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -214,6 +242,53 @@ export default function Home() {
                 GRAPH READY
               </div>
             </div>
+
+            {/* REPOSITORY SEARCH */}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleAnalyze();
+              }}
+              className="mt-7 flex flex-col gap-3 rounded-lg border border-[#263947] bg-[#101b27] p-3 sm:flex-row"
+            >
+              <input
+                type="url"
+                required
+                aria-label="GitHub repository URL"
+                value={repositoryUrl}
+                onChange={(event) => setRepositoryUrl(event.target.value)}
+                placeholder="https://github.com/owner/repository"
+                className="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-xs text-[#e7f2f5] outline-none"
+              />
+
+              <button
+                type="submit"
+                disabled={isAnalyzing}
+                className="cursor-pointer rounded-md border border-[#278c78] bg-[#145b4b] px-5 py-3 font-mono text-xs font-semibold text-[#a4ffdd] hover:bg-[#197561] disabled:opacity-50"
+              >
+                {isAnalyzing ? "ANALYZING..." : "ANALYZE REPO"}
+              </button>
+            </form>
+
+            {analysisError && (
+              <p role="alert" className="mt-3 text-xs text-red-400">
+                {analysisError}
+              </p>
+            )}
+
+            {analysis && (
+              <div className="mt-3 font-mono text-xs text-[#62e6c0]">
+                {analysis.repository} · {analysis.analyzedFiles} files ·{" "}
+                {analysis.connections.length} connections
+
+                {analysis.warnings.map((warning) => (
+                  <p key={warning} className="mt-2 text-amber-300">
+                    {warning}
+                  </p>
+                ))}
+              </div>
+            )}
+
 
             {/* METRICS */}
             <div className="mt-7 grid grid-cols-3 gap-3">
@@ -250,8 +325,10 @@ export default function Home() {
 
               <div className="absolute inset-0">
                 <ReactFlow
-                  nodes={nodes}
+                  key={analysis?.repository ?? "sample"}
+                  nodes={layoutedNodes}
                   edges={edges}
+                  nodeTypes={nodeTypes}
                   onNodeClick={(_, node) => setSelectedId(node.id)}
                   onPaneClick={() => setSelectedId(null)}
                   nodesDraggable={false}
@@ -259,7 +336,7 @@ export default function Home() {
                   elementsSelectable={true}
                   fitView
                   fitViewOptions={{ padding: 0.2 }}
-                  minZoom={0.3}
+                  minZoom={0.05}
                   maxZoom={2}
                 >
                   <Background
