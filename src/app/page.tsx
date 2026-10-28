@@ -19,12 +19,17 @@ import {
 import { FileInspector } from "@/components/inspector/FileInspector";
 import type { AnalysisResult } from "@/types/repository";
 import { ArchitectureOverview } from "@/components/architecture/ArchitectureOverview";
+import {
+  buildFolderGrouping,
+  type FolderDepth,
+} from "@/lib/folder-groups";
+
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
   const [activeView, setActiveView] = useState<WorkspaceView>("map");
   const [impactSourceId, setImpactSourceId] = useState<string | null>(null);
-
+  const [folderDepth, setFolderDepth] = useState<FolderDepth>(3);
   const [repositoryUrl, setRepositoryUrl] = useState("");
 
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -38,6 +43,10 @@ export default function Home() {
   const graphIndex = useMemo(
     () => createGraphIndex({ files, connections }),
     [files, connections]
+  );
+  const folderGrouping = useMemo(
+    () => buildFolderGrouping({ files, connections }, folderDepth),
+    [files, connections, folderDepth]
   );
 
   const architectureMetrics = useMemo(
@@ -158,6 +167,9 @@ export default function Home() {
 
         {activeView === "overview" && (
           <ArchitectureOverview
+            folderGrouping={folderGrouping}
+            folderDepth={folderDepth}
+            onFolderDepthChange={setFolderDepth}
             metrics={architectureMetrics}
             files={files}
             repositoryName={analysis?.repository ?? null}

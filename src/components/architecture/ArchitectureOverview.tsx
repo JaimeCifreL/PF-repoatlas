@@ -11,6 +11,13 @@ import {
 
 import type { ArchitectureMetrics } from "@/lib/graph-metrics";
 import type { RepoFile } from "@/types/repository";
+import { FolderGroupsPanel } from "./FolderGroupsPanel";
+
+import type {
+  FolderDepth,
+  FolderGrouping,
+} from "@/lib/folder-groups";
+
 
 type Props = {
   metrics: ArchitectureMetrics;
@@ -20,6 +27,9 @@ type Props = {
   onInspect: (id: string) => void;
   onAnalyzeImpact: (id: string) => void;
   onFocusCycle: (index: number) => void;
+  folderGrouping: FolderGrouping;
+  folderDepth: FolderDepth;
+  onFolderDepthChange: (depth: FolderDepth) => void;
 };
 
 export function ArchitectureOverview({
@@ -30,6 +40,9 @@ export function ArchitectureOverview({
   onInspect,
   onAnalyzeImpact,
   onFocusCycle,
+  folderGrouping,
+  folderDepth,
+  onFolderDepthChange,
 }: Props) {
   const fileById = new Map(
     files.map((file) => [file.id, file])
@@ -295,6 +308,11 @@ export function ArchitectureOverview({
         METRICS BASED ON RESOLVED STATIC DEPENDENCIES.
         NO QUALITY SCORE OR ERROR PROBABILITY IS IMPLIED.
       </div>
+      <FolderGroupsPanel
+        grouping={folderGrouping}
+        depth={folderDepth}
+        onDepthChange={onFolderDepthChange}
+        />
     </main>
   );
 }
