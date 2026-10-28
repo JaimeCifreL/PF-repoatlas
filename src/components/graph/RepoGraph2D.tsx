@@ -16,22 +16,33 @@ import RepoFileNodeView, {
 } from "./RepoFileNode";
 
 import { layoutGraph } from "@/lib/graph-layout";
+
 import {
   connectionKey,
   type ImpactResult,
 } from "@/lib/graph-impact";
+
 import type {
   RepoFile,
   RepoConnection,
 } from "@/types/repository";
 
+import type { FolderGrouping } from "@/lib/folder-groups";
+import { getFolderColor } from "@/lib/folder-visuals";
+
 type Props = {
   files: readonly RepoFile[];
   connections: readonly RepoConnection[];
+
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+
   impact: ImpactResult | null;
   cycleFocusIds: readonly string[] | null;
+
+  folderGrouping: FolderGrouping;
+  visibleFolderIds: ReadonlySet<string> | null;
+  colorByFolder: boolean;
 };
 
 const nodeTypes = {
@@ -51,13 +62,18 @@ export function RepoGraph2D({
   onSelect,
   impact,
   cycleFocusIds,
+  folderGrouping,
+  visibleFolderIds,
+  colorByFolder,
 }: Props) {
 
-  // 1. Calcular las conexiones de cada archivo.
+  // 1. Grupo circular seleccionado.
   const cycleSet = useMemo(
     () => new Set(cycleFocusIds ?? []),
     [cycleFocusIds]
   );
+
+  // 2. Construir los nodos originales.
   const baseNodes = useMemo<RepoFileNode[]>(() => {
     const degrees = new Map<string, number>();
 
@@ -95,7 +111,7 @@ export function RepoGraph2D({
     });
   }, [files, connections]);
 
-  // 2. Construir las conexiones originales.
+  // 3. Conexiones originales.
   const baseEdges = useMemo<Edge[]>(() => {
     return connections.map(([source, target]) => ({
       id: `${source}->${target}`,
@@ -105,13 +121,12 @@ export function RepoGraph2D({
     }));
   }, [connections]);
 
-  // 3. Calcular el layout solo cuando cambie
-  // la estructura del repositorio.
+  // 4. Layout independiente de los filtros visuales.
   const positionedNodes = useMemo(() => {
     return layoutGraph(baseNodes, baseEdges);
   }, [baseNodes, baseEdges]);
 
-  // 4. Identificar los vecinos del archivo seleccionado.
+  // 5. Archivos relacionados con el seleccionado.
   const relatedIds = useMemo(() => {
     const related = new Set<string>();
 
@@ -134,8 +149,7 @@ export function RepoGraph2D({
     return related;
   }, [selectedId, connections]);
 
-  // 5. Actualizar la apariencia sin cambiar posiciones.
-  
+  // 6. Aplicar colores, ciclos, impacto y filtros.
   const nodes = useMemo<RepoFileNode[]>(() => {
     return positionedNodes.map((node) => {
       const inFocusedCycle = cycleSet.has(node.id);
@@ -163,10 +177,24 @@ export function RepoGraph2D({
             ? impactLevel !== null
             : selectedId === null || relatedIds.has(node.id);
 
+      const hidden =
+        visibleFolderIds !== null &&
+        !visibleFolderIds.has(node.id);
+
+      const folderId =
+        folderGrouping.fileToGroup.get(node.id) ??
+        "folder:.";
+
       return {
         ...node,
+        hidden,
         data: {
           ...node.data,
+
+          color: colorByFolder
+            ? getFolderColor(folderId)
+            : node.data.color,
+
           isSelected: node.id === selectedId,
           isRelated,
           impactLevel,
@@ -174,53 +202,102 @@ export function RepoGraph2D({
         },
       };
     });
-  }, [ positionedNodes, selectedId, relatedIds, impact, cycleFocusIds, cycleSet,]);
+  }, [
+    positionedNodes,
+    selectedId,
+    relatedIds,
+    impact,
+    cycleFocusIds,
+    cycleSet,
+    folderGrouping,
+    visibleFolderIds,
+    colorByFolder,
+  ]);
 
-  // 6. Destacar las conexiones seleccionadas.
-  
-    const edges = useMemo<Edge[]>(() => {
+  // 7. Aplicar el mismo filtro a las conexiones.
+  const edges = useMemo<Edge[]>(() => {
     return baseEdges.map((edge) => {
-        const selectedConnection =
-        edge.source === selectedId ||
-        edge.target === selectedId;
+      const hidden =
+        visibleFolderIds !== null &&
+        (
+          !visibleFolderIds.has(edge.source) ||
+          !visibleFolderIds.has(edge.target)
+        );
 
-        if (impact) {
-        const inImpactPath = impact.highlightedEdges.has(
-            connectionKey(edge.source, edge.target)
+      // Prioridad 1: dependencias circulares.
+      if (cycleFocusIds !== null) {
+        const highlighted =
+          cycleSet.has(edge.source) &&
+          cycleSet.has(edge.target);
+
+        return {
+          ...edge,
+          hidden,
+          animated: false,
+          style: {
+            stroke: highlighted ? "#f4a261" : "#293947",
+            strokeWidth: highlighted ? 2.8 : 0.8,
+            opacity: highlighted ? 1 : 0.12,
+          },
+        };
+      }
+
+      // Prioridad 2: análisis de impacto.
+      if (impact) {
+        const highlighted = impact.highlightedEdges.has(
+          connectionKey(edge.source, edge.target)
         );
 
         const depth = impact.depthById.get(edge.source);
 
         return {
-            ...edge,
-            animated: false,
-            style: {
-            stroke: inImpactPath
-                ? depth === 1
+          ...edge,
+          hidden,
+          animated: false,
+          style: {
+            stroke: highlighted
+              ? depth === 1
                 ? "#eda65d"
                 : "#ae92f1"
-                : "#293947",
-            strokeWidth: inImpactPath ? 2.7 : 0.8,
-            opacity: inImpactPath ? 1 : 0.12,
-            },
-        };
-        }
+              : "#293947",
 
-        return {
+            strokeWidth: highlighted ? 2.7 : 0.8,
+            opacity: highlighted ? 1 : 0.12,
+          },
+        };
+      }
+
+      // Prioridad 3: selección normal.
+      const selectedConnection =
+        edge.source === selectedId ||
+        edge.target === selectedId;
+
+      return {
         ...edge,
+        hidden,
         animated: selectedConnection,
         style: {
-            stroke: selectedConnection ? "#30e6c1" : "#365566",
-            strokeWidth: selectedConnection ? 2 : 1.2,
-            opacity:
-            selectedId !== null && !selectedConnection
-                ? 0.25
-                : 0.9,
-        },
-        };
-    });
-    }, [baseEdges, selectedId, impact]);
+          stroke: selectedConnection
+            ? "#30e6c1"
+            : "#365566",
 
+          strokeWidth: selectedConnection ? 2 : 1.2,
+
+          opacity:
+            selectedId !== null && !selectedConnection
+              ? 0.25
+              : 0.9,
+        },
+      };
+    });
+  }, [
+    baseEdges,
+    selectedId,
+    impact,
+    cycleFocusIds,
+    cycleSet,
+    visibleFolderIds,
+  ]);
 
   return (
     <ReactFlow

@@ -17,15 +17,26 @@ import {
   connections as sampleConnections,
 } from "@/lib/sample-repository";
 import { FileInspector } from "@/components/inspector/FileInspector";
-import type { AnalysisResult } from "@/types/repository";
 import { ArchitectureOverview } from "@/components/architecture/ArchitectureOverview";
 import {
   buildFolderGrouping,
   type FolderDepth,
 } from "@/lib/folder-groups";
+import { FolderGraphControls } from "@/components/graph/FolderGraphControls";
+import { getFolderColor } from "@/lib/folder-visuals";
+import type {
+  AnalysisResult,
+  RepoFile,
+  RepoConnection,
+} from "@/types/repository";
 
 
 export default function Home() {
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [labelFontSize, setLabelFontSize] = useState(8);
+  const [labelsVisible, setLabelsVisible] = useState(true);
+
+  const [colorByFolder, setColorByFolder] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>("graph");
   const [activeView, setActiveView] = useState<WorkspaceView>("map");
   const [impactSourceId, setImpactSourceId] = useState<string | null>(null);
@@ -48,6 +59,25 @@ export default function Home() {
     () => buildFolderGrouping({ files, connections }, folderDepth),
     [files, connections, folderDepth]
   );
+  
+  const visibleFolderIds = useMemo<ReadonlySet<string> | null>(
+    () => {
+      if (selectedFolderId === null) return null;
+
+      const group = folderGrouping.groups.find(
+        (item) => item.id === selectedFolderId
+      );
+
+      return group ? new Set(group.fileIds) : null;
+    },
+    [folderGrouping, selectedFolderId]
+  );
+
+  function changeFolderDepth(depth: FolderDepth) {
+    setFolderDepth(depth);
+    setSelectedFolderId(null);
+  }
+
 
   const architectureMetrics = useMemo(
     () => calculateGraphMetrics(graphIndex),
@@ -73,9 +103,12 @@ export default function Home() {
     setAnalysisError(null);
 
     try {
-      const response = await fetch(
-        `/api/analyze?url=${encodeURIComponent(repositoryUrl.trim())}`
-      );
+      const encodedUrl = encodeURIComponent(repositoryUrl.trim());
+
+      const [response, inventoryResponse] = await Promise.all([
+        fetch(`/api/analyze?url=${encodedUrl}`),
+        fetch(`/api/inventory?url=${encodedUrl}`),
+      ]);
 
       const payload: unknown = await response.json();
 
@@ -92,11 +125,116 @@ export default function Home() {
       }
 
       const result = payload as AnalysisResult;
+      
+      const inventoryPayload: unknown = await inventoryResponse.json();
 
-      setAnalysis(result);
+      if (!inventoryResponse.ok) {
+        const message =
+          inventoryPayload !== null &&
+          typeof inventoryPayload === "object" &&
+          "error" in inventoryPayload &&
+          typeof inventoryPayload.error === "string"
+            ? inventoryPayload.error
+            : "No se pudo obtener el inventario completo.";
+
+        throw new Error(message);
+      }
+
+      const inventory = inventoryPayload as {
+        files: RepoFile[];
+        directories: string[];
+        pythonFileCount: number;
+        pythonConnections: RepoConnection[];
+        analyzedPythonPaths: string[];
+        pythonPartial: boolean;
+        pythonWarnings: string[];
+      };
+
+      const pythonAnalyzed = new Set(
+        inventory.analyzedPythonPaths
+      );
+
+      // Conservar los datos y las conexiones de los archivos
+      // que ya analiza nuestro motor JavaScript/TypeScript.
+      const analyzedByPath = new Map(
+        result.files.map((file) => [file.path, file])
+      );
+      
+      const completeFiles: RepoFile[] = inventory.files.map(
+        (file) => {
+          const analyzed = analyzedByPath.get(file.path);
+
+          // Archivos procesados por el analizador JS/TS.
+          if (analyzed) {
+            return {
+              ...file,
+              ...analyzed,
+              language: file.language,
+              analysisStatus: "analyzed",
+            };
+          }
+
+          // Archivos procesados por el analizador Python.
+          if (pythonAnalyzed.has(file.path)) {
+            return {
+              ...file,
+              analysisStatus: "analyzed",
+            };
+          }
+
+          // Archivos inventariados, pendientes de analizador.
+          return file;
+        }
+      );
+      // Combinar conexiones JavaScript/TypeScript y Python.
+      const existingIds = new Set(
+        completeFiles.map((file) => file.id)
+      );
+
+      const seenConnections = new Set<string>();
+
+      const completeConnections: RepoConnection[] = [
+        ...result.connections,
+        ...inventory.pythonConnections,
+      ].filter(([source, target]) => {
+        // No crear relaciones con archivos inexistentes.
+        if (
+          !existingIds.has(source) ||
+          !existingIds.has(target)
+        ) {
+          return false;
+        }
+
+        // Evitar conexiones duplicadas.
+        const key = JSON.stringify([source, target]);
+
+        if (seenConnections.has(key)) {
+          return false;
+        }
+
+        seenConnections.add(key);
+        return true;
+      });
+
+
+      setAnalysis({
+        ...result,
+        files: completeFiles,
+        connections: completeConnections,
+        totalCodeFiles:
+          result.totalCodeFiles + inventory.pythonFileCount,
+        analyzedFiles:
+          result.analyzedFiles + pythonAnalyzed.size,
+        partial: result.partial || inventory.pythonPartial,
+        warnings: [
+          ...result.warnings,
+          ...inventory.pythonWarnings,
+        ],
+      });
       setSelectedId(null);
       setImpactSourceId(null);
       setFocusedCycleIndex(null);
+      setSelectedFolderId(null);
     } catch (error) {
       setAnalysisError(
         error instanceof Error
@@ -169,7 +307,7 @@ export default function Home() {
           <ArchitectureOverview
             folderGrouping={folderGrouping}
             folderDepth={folderDepth}
-            onFolderDepthChange={setFolderDepth}
+            onFolderDepthChange={changeFolderDepth}
             metrics={architectureMetrics}
             files={files}
             repositoryName={analysis?.repository ?? null}
@@ -284,6 +422,18 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            <FolderGraphControls
+              grouping={folderGrouping}
+              depth={folderDepth}
+              selectedFolderId={selectedFolderId}
+              colorByFolder={colorByFolder}
+              onDepthChange={changeFolderDepth}
+              onFolderChange={(id) => {
+                setSelectedFolderId(id);
+                setSelectedId(null);
+              }}
+              onColorModeChange={setColorByFolder}
+            />
 
             {/* INTERACTIVE CANVAS */}
             <div className="relative mt-5 min-h-[530px] flex-1 overflow-hidden rounded-xl border border-[#263442] bg-[#0a121c]">
@@ -329,6 +479,13 @@ export default function Home() {
                     onSelect={setSelectedId}
                     impact={impact}
                     cycleFocusIds={focusedCycleIds}
+                    folderGrouping={folderGrouping}
+                    visibleFolderIds={visibleFolderIds}
+                    colorByFolder={colorByFolder}
+                    labelFontSize={labelFontSize}
+                    labelsVisible={labelsVisible}
+                    onLabelFontSizeChange={setLabelFontSize}
+                    onLabelsVisibleChange={setLabelsVisible}
                   />
                 ) : (
                   
@@ -340,6 +497,9 @@ export default function Home() {
                     onSelect={setSelectedId}
                     impact={impact}
                     cycleFocusIds={focusedCycleIds}
+                    folderGrouping={folderGrouping}
+                    visibleFolderIds={visibleFolderIds}
+                    colorByFolder={colorByFolder}
                   />
 
                 )}
@@ -349,11 +509,19 @@ export default function Home() {
                 <div className="mb-2 font-mono text-[10px] text-[#71899a]">
                   LEGEND
                 </div>
-                {[
-                  ["#f2a36b", "Entry point"],
-                  ["#23d1ad", "Module"],
-                  ["#6ca9d9", "Shared"],
-                ].map(([color, label]) => (
+                {(
+                  colorByFolder
+                    ? folderGrouping.groups.slice(0, 6).map((group) => ({
+                        color: getFolderColor(group.id),
+                        label: group.path,
+                      }))
+                    : [
+                        { color: "#f2a36b", label: "Entry point" },
+                        { color: "#23d1ad", label: "Module" },
+                        { color: "#6ca9d9", label: "Shared" },
+                      ]
+                ).map(({ color, label }) => (
+
                   <div key={label} className="mt-1 flex items-center gap-2 text-[11px] text-[#a7b9c7]">
                     <span className="h-2 w-2 rounded-full" style={{ background: color }} />
                     {label}

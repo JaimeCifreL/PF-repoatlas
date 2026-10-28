@@ -9,6 +9,7 @@ export type RepoFile = {
   name: string;
   path: string;
   kind: RepoFileKind;
+  analysisStatus?: "indexed" | "analyzed";
 
   // Se completará al añadir más lenguajes.
   language?: string;
