@@ -21,6 +21,7 @@ export type FileMetrics = {
   // Indicadores estructurales.
   inCycle: boolean;
   isolated: boolean;
+  analysisStatus: "indexed" | "analyzed";
 };
 
 export type ArchitectureMetrics = {
@@ -35,6 +36,8 @@ export type ArchitectureMetrics = {
 
   mostReferenced: readonly FileMetrics[];
   highestImpact: readonly FileMetrics[];
+  analyzedFiles: number;
+  indexedOnlyFiles: number;
 };
 
 /**
@@ -58,8 +61,19 @@ export function calculateGraphMetrics(
 
   let connectionCount = 0;
   let isolatedFiles = 0;
+  let analyzedFiles = 0;
+  let indexedOnlyFiles = 0;
 
   for (const id of index.filesById.keys()) {
+    const analysisStatus =
+      index.filesById.get(id)?.analysisStatus ?? "analyzed";
+
+    if (analysisStatus === "analyzed") {
+      analyzedFiles++;
+    } else {
+      indexedOnlyFiles++;
+    }
+
     const incoming =
       index.incoming.get(id) ?? new Set<string>();
 
@@ -87,8 +101,7 @@ export function calculateGraphMetrics(
         ? neighbors.size / (fileCount - 1)
         : 0;
 
-    const isolated =
-      fanIn === 0 && fanOut === 0;
+    const isolated = analysisStatus === "analyzed" && fanIn === 0 && fanOut === 0;
 
     if (isolated) {
       isolatedFiles++;
@@ -107,6 +120,7 @@ export function calculateGraphMetrics(
       degreeCentrality,
       inCycle: cycleIds.has(id),
       isolated,
+      analysisStatus,
     });
   }
 
@@ -142,5 +156,7 @@ export function calculateGraphMetrics(
     byFile,
     mostReferenced,
     highestImpact,
+    analyzedFiles,
+  indexedOnlyFiles,
   };
 }

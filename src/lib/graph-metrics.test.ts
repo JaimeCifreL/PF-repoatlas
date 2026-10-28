@@ -139,4 +139,47 @@ describe("RepoAtlas - Architecture Metrics", () => {
     expect(metrics.cycleGroups).toEqual([]);
     expect(metrics.highestImpact).toEqual([]);
   });
+  
+  it("no considera aislados los archivos sin analizar", () => {
+    const graph = {
+      files: [
+        {
+          id: "backend/main.py",
+          name: "main.py",
+          path: "backend/main.py",
+          kind: "entry" as const,
+          analysisStatus: "analyzed" as const,
+        },
+        {
+          id: "src/App.java",
+          name: "App.java",
+          path: "src/App.java",
+          kind: "feature" as const,
+          analysisStatus: "indexed" as const,
+        },
+      ],
+      connections: [],
+    };
+
+    const metrics = calculateGraphMetrics(
+      createGraphIndex(graph)
+    );
+
+    expect(metrics.files).toBe(2);
+    expect(metrics.analyzedFiles).toBe(1);
+    expect(metrics.indexedOnlyFiles).toBe(1);
+
+    // Solo el archivo analizado puede clasificarse
+    // como archivo sin conexiones resueltas.
+    expect(metrics.isolatedFiles).toBe(1);
+
+    expect(
+      metrics.byFile.get("src/App.java")?.isolated
+    ).toBe(false);
+
+    expect(
+      metrics.byFile.get("backend/main.py")?.isolated
+    ).toBe(true);
+  });
+
 });

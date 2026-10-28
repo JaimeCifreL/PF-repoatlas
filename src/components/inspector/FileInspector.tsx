@@ -6,24 +6,24 @@ import {
   FileCode2,
   GitBranch,
 } from "lucide-react";
+
 import { ImpactPanel } from "./ImpactPanel";
 import type { ImpactResult } from "@/lib/graph-impact";
 
-type FileRecord = {
-  id: string;
-  name: string;
-  path: string;
-};
+import type {
+  RepoFile,
+  RepoConnection,
+} from "@/types/repository";
 
 type FileInspectorProps = {
-    selectedId: string | null;
-    files: readonly FileRecord[];
-    connections: readonly (readonly [string, string])[];
-    repositoryName?: string | null;
-    onSelect: (id: string) => void;
-    impact: ImpactResult | null;
-    onAnalyzeImpact: (id: string) => void;
-    onClearImpact: () => void;
+  selectedId: string | null;
+  files: readonly RepoFile[];
+  connections: readonly RepoConnection[];
+  repositoryName?: string | null;
+  onSelect: (id: string) => void;
+  impact: ImpactResult | null;
+  onAnalyzeImpact: (id: string) => void;
+  onClearImpact: () => void;
 };
 
 export function FileInspector({
@@ -37,26 +37,35 @@ export function FileInspector({
   onClearImpact,
 }: FileInspectorProps) {
 
-  // Archivo seleccionado
+  // Archivo seleccionado.
   const selectedFile = files.find(
     (file) => file.id === selectedId
   );
 
-  // Archivos que importa el seleccionado
+  // Estado del análisis.
+  // Los datos de ejemplo no tienen por qué incluir
+  // analysisStatus.
+  const fileStatus =
+    selectedFile?.analysisStatus ??
+    (repositoryName ? "indexed" : "sample");
+
+  const isIndexed = fileStatus === "indexed";
+
+  // Archivos que importa el seleccionado.
   const imports = connections
     .filter(([source]) => source === selectedId)
     .map(([, target]) =>
       files.find((file) => file.id === target)
     )
-    .filter((file): file is FileRecord => file !== undefined);
+    .filter((file): file is RepoFile => file !== undefined);
 
-  // Archivos que dependen del seleccionado
+  // Archivos que dependen del seleccionado.
   const dependents = connections
     .filter(([, target]) => target === selectedId)
     .map(([source]) =>
       files.find((file) => file.id === source)
     )
-    .filter((file): file is FileRecord => file !== undefined);
+    .filter((file): file is RepoFile => file !== undefined);
 
   return (
     <aside className="border-t border-[#263442] bg-[#0c1420] p-5 xl:border-l xl:border-t-0">
@@ -73,14 +82,15 @@ export function FileInspector({
         />
       </div>
 
+      {/* IMPACT ANALYSIS */}
       {impact && (
         <ImpactPanel
-            impact={impact}
-            files={files}
-            onSelect={onSelect}
-            onClear={onClearImpact}
+          impact={impact}
+          files={files}
+          onSelect={onSelect}
+          onClear={onClearImpact}
         />
-        )}
+      )}
 
       {selectedFile ? (
         <div>
@@ -98,13 +108,52 @@ export function FileInspector({
             {selectedFile.path}
           </div>
 
+          {/* LANGUAGE AND ANALYSIS STATUS */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+
+            <span
+              className={`rounded-md border px-2 py-1 font-mono text-[10px] ${
+                fileStatus === "analyzed"
+                  ? "border-[#278e79] bg-[#123e35] text-[#55dfba]"
+                  : fileStatus === "indexed"
+                    ? "border-[#536274] bg-[#1b2937] text-[#9fb1c0]"
+                    : "border-[#735b38] bg-[#302719] text-[#e8bd7c]"
+              }`}
+            >
+              {fileStatus === "analyzed"
+                ? "ANALYZED"
+                : fileStatus === "indexed"
+                  ? "INDEXED"
+                  : "SAMPLE"}
+            </span>
+
+            {selectedFile.language && (
+              <span className="rounded-md border border-[#354657] bg-[#142331] px-2 py-1 font-mono text-[10px] text-[#a8c0d0]">
+                {selectedFile.language}
+              </span>
+            )}
+          </div>
+
+          {/* WARNING FOR INDEXED-ONLY FILES */}
+          {isIndexed && (
+            <div className="mt-4 rounded-lg border border-[#48566b] bg-[#172330] p-3">
+              <p className="text-[11px] leading-relaxed text-[#a9bbca]">
+                This file has been indexed but its
+                dependencies have not been analyzed.
+                Missing connections do not necessarily
+                mean the file is isolated.
+              </p>
+            </div>
+          )}
+
+          {/* ANALYZE IMPACT */}
           <button
-                type="button"
-                onClick={() => onAnalyzeImpact(selectedFile.id)}
-                className="mt-5 w-full cursor-pointer rounded-lg border border-[#278e79] bg-[#134b40] px-4 py-3 font-mono text-[11px] font-semibold tracking-wider text-[#a4ffe1] transition-colors hover:bg-[#196858]"
-                >
-                ANALYZE IMPACT
-            </button>
+            type="button"
+            onClick={() => onAnalyzeImpact(selectedFile.id)}
+            className="mt-5 w-full cursor-pointer rounded-lg border border-[#278e79] bg-[#134b40] px-4 py-3 font-mono text-[11px] font-semibold tracking-wider text-[#a4ffe1] transition-colors hover:bg-[#196858]"
+          >
+            ANALYZE IMPACT
+          </button>
 
           <div className="my-6 h-px bg-[#263443]" />
 
@@ -117,13 +166,19 @@ export function FileInspector({
               </div>
 
               <div className="mt-2 font-mono text-xl text-[#2cdbb7]">
-                {imports.length}
+                {isIndexed ? "—" : imports.length}
               </div>
+
+              {isIndexed && (
+                <div className="mt-1 text-[9px] text-[#6e889a]">
+                  NOT ANALYZED
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-[#263443] bg-[#111d2a] p-3">
               <div className="font-mono text-[10px] text-[#7990a2]">
-                DEPENDENTS
+                KNOWN DEPENDENTS
               </div>
 
               <div className="mt-2 font-mono text-xl text-[#e5b06a]">
@@ -167,7 +222,9 @@ export function FileInspector({
               </div>
             ) : (
               <p className="text-xs text-[#698092]">
-                No resolved direct imports.
+                {isIndexed
+                  ? "Dependency analysis is not available for this file yet."
+                  : "No resolved direct imports."}
               </p>
             )}
           </div>
@@ -244,8 +301,9 @@ export function FileInspector({
               </div>
 
               <p className="mt-2">
-                Relationships represent resolved
-                source-code imports.
+                Connections represent resolved
+                source-code imports. Indexed-only files
+                may have additional dependencies.
               </p>
             </>
           ) : (

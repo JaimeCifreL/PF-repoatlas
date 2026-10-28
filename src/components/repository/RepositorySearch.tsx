@@ -1,7 +1,13 @@
 
 "use client";
 
-import { GitBranch, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+  GitBranch,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+} from "lucide-react";
+
 import type { AnalysisResult } from "@/types/repository";
 
 type RepositorySearchProps = {
@@ -21,6 +27,20 @@ export function RepositorySearch({
   analysisError,
   analysis,
 }: RepositorySearchProps) {
+
+  // Diferenciar inventario de análisis real.
+  const analyzedCount =
+    analysis?.files.filter(
+      (file) => file.analysisStatus === "analyzed"
+    ).length ?? 0;
+
+  const indexedOnlyCount =
+    (analysis?.files.length ?? 0) - analyzedCount;
+
+  const limitedCoverage =
+    (analysis?.partial ?? false) ||
+    indexedOnlyCount > 0;
+
   return (
     <section className="mt-7">
 
@@ -56,7 +76,10 @@ export function RepositorySearch({
         >
           {isAnalyzing ? (
             <>
-              <Loader2 size={14} className="animate-spin" />
+              <Loader2
+                size={14}
+                className="animate-spin"
+              />
               ANALYZING...
             </>
           ) : (
@@ -104,14 +127,28 @@ export function RepositorySearch({
             </span>
           </div>
 
+          {/* INVENTORY AND ANALYSIS METRICS */}
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] text-[#90a9ab]">
 
             <span>
               <strong className="text-[#d7ece8]">
-                {analysis.analyzedFiles}
+                {analysis.files.length}
               </strong>
-              {" / "}
-              {analysis.totalCodeFiles} files analyzed
+              {" "}files found
+            </span>
+
+            <span>
+              <strong className="text-[#62e6c0]">
+                {analyzedCount}
+              </strong>
+              {" "}analyzed
+            </span>
+
+            <span>
+              <strong className="text-[#c1cad5]">
+                {indexedOnlyCount}
+              </strong>
+              {" "}indexed only
             </span>
 
             <span>
@@ -120,26 +157,44 @@ export function RepositorySearch({
               </strong>
               {" "}connections
             </span>
+          </div>
 
-            <span className={
-              analysis.partial
-                ? "text-[#e6b77b]"
-                : "text-[#62d4ac]"
-            }>
-              {analysis.partial ? "PARTIAL" : "COMPLETE"}
+          {/* ANALYSIS COVERAGE STATUS */}
+          <div className="mt-3 border-t border-[#294438] pt-3">
+
+            <span
+              className={`font-mono text-[10px] font-semibold tracking-wide ${
+                limitedCoverage
+                  ? "text-[#e6b77b]"
+                  : "text-[#62d4ac]"
+              }`}
+            >
+              {limitedCoverage
+                ? "LIMITED ANALYSIS COVERAGE"
+                : "ALL INDEXED FILES PROCESSED"}
             </span>
+
+            {indexedOnlyCount > 0 && (
+              <p className="mt-2 text-[11px] leading-relaxed text-[#8ea9a9]">
+                Some files are indexed but their dependencies
+                have not yet been analyzed.
+              </p>
+            )}
           </div>
 
           {/* WARNINGS */}
           {analysis.warnings.length > 0 && (
             <div className="mt-3 border-t border-[#294438] pt-3">
-              {analysis.warnings.map((warning) => (
+              {analysis.warnings.map((warning, index) => (
                 <div
-                  key={warning}
+                  key={`${index}-${warning}`}
                   className="mt-1 flex items-start gap-2 text-[11px] text-[#e6b77b]"
                 >
-                  <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                  {warning}
+                  <AlertTriangle
+                    size={12}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span>{warning}</span>
                 </div>
               ))}
             </div>

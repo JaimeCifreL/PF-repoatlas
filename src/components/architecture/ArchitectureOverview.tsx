@@ -55,12 +55,32 @@ export function ArchitectureOverview({
   function getName(id: string) {
     return fileById.get(id)?.name ?? id;
   }
-
+  
   const summary = [
-    { label: "FILES", value: metrics.files },
-    { label: "CONNECTIONS", value: metrics.connections },
-    { label: "CIRCULAR GROUPS", value: metrics.cycleGroups.length },
-    { label: "ISOLATED", value: metrics.isolatedFiles },
+    {
+      label: "FILES FOUND",
+      value: metrics.files,
+    },
+    {
+      label: "DEPENDENCIES",
+      value: metrics.connections,
+    },
+    {
+      label: "ANALYZED",
+      value: metrics.analyzedFiles,
+    },
+    {
+      label: "INDEXED ONLY",
+      value: metrics.indexedOnlyFiles,
+    },
+    {
+      label: "CYCLE GROUPS",
+      value: metrics.cycleGroups.length,
+    },
+    {
+      label: "NO RESOLVED LINKS",
+      value: metrics.isolatedFiles,
+    },
   ];
 
   return (
@@ -94,7 +114,7 @@ export function ArchitectureOverview({
       )}
 
       {/* SUMMARY */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
         {summary.map((metric) => (
           <div
             key={metric.label}
@@ -273,12 +293,12 @@ export function ArchitectureOverview({
             <GitBranch size={17} className="text-[#72a8d8]" />
 
             <h2 className="font-mono text-xs font-semibold tracking-wider">
-              ISOLATED FILES
+              ANALYZED FILES WITHOUT LINKS
             </h2>
           </div>
 
           <p className="mb-5 text-xs text-[#7891a2]">
-            Files without resolved incoming or outgoing dependencies.
+            Files analyzed without any resolved incoming or outgoing dependencies.
           </p>
 
           {isolated.length === 0 ? (
