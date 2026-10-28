@@ -50,6 +50,7 @@ function toFile(entry: GithubEntry): RepoFile {
     name,
     path: entry.path,
     kind,
+    sha: entry.sha,
     size: entry.size,
 
     language:
@@ -77,48 +78,42 @@ export function snapshotInventory(
     commitSha: snapshot.commitSha,
 
     files: snapshot.entries
-      .filter(
-        (entry) => entry.type !== "tree"
-      )
+      .filter((entry) => entry.type !== "tree")
       .map(toFile),
 
     directories: snapshot.entries
-      .filter(
-        (entry) => entry.type === "tree"
-      )
+      .filter((entry) => entry.type === "tree")
       .map((entry) => entry.path),
   };
 }
 
-export async function analyzeGithubRepository(
-  url: string,
-  branch?: string
+export async function analyzeGithubSnapshot(
+  snapshot: GithubSnapshot
 ): Promise<AnalysisResult> {
-  const key = `${url.trim()}#${branch ?? ""}`;
+  const key =
+    `${snapshot.repository}@${snapshot.commitSha}`;
 
-  const now = Date.now();
   const cached = cache.get(key);
 
-  if (
-    cached &&
-    cached.until > now
-  ) {
-    return cached.value;
+  if (cached && cached.until > Date.now()) {
+    return {
+      ...cached.value,
+      branch: snapshot.branch,
+    };
   }
-
-  const snapshot = await loadGithubSnapshot(
-    url,
-    branch
-  );
 
   const inventory = snapshotInventory(snapshot);
 
-  const eligible = snapshot.entries.filter(
-    (entry) =>
-      entry.type === "blob" &&
-      entry.mode !== "120000" &&
-      canAnalyze(entry.path)
-  );
+  const eligible = snapshot.entries
+    .filter(
+      (entry) =>
+        entry.type === "blob" &&
+        entry.mode !== "120000" &&
+        canAnalyze(entry.path)
+    )
+    .sort((a, b) =>
+      a.path.localeCompare(b.path)
+    );
 
   const selected = eligible
     .filter(
@@ -130,25 +125,15 @@ export async function analyzeGithubRepository(
 
   const warnings: string[] = [];
 
-  const skippedBySize = eligible.filter(
-    (entry) =>
-      entry.size !== undefined &&
-      entry.size > MAX_SOURCE_BYTES
-  ).length;
-
   if (eligible.length > selected.length) {
     warnings.push(
-      `Analysis limited: ${selected.length}/${eligible.length} ` +
-      `supported code files selected ` +
-      `(${skippedBySize} too large). ` +
-      `All files are still indexed.`
+      `Analysis limited to ${selected.length} of ` +
+      `${eligible.length} supported source files. ` +
+      `All files remain indexed.`
     );
   }
 
-  const sources = new Map<
-    string,
-    string
-  >();
+  const sources = new Map<string, string>();
 
   for (
     let i = 0;
@@ -160,23 +145,23 @@ export async function analyzeGithubRepository(
         .slice(i, i + CONCURRENCY)
         .map(async (entry) => {
           try {
-            const text = await loadGithubText(
+            const source = await loadGithubText(
               snapshot,
               entry
             );
 
             if (
-              Buffer.byteLength(text, "utf8") >
+              Buffer.byteLength(source, "utf8") >
               MAX_SOURCE_BYTES
             ) {
               warnings.push(
-                `${entry.path}: skipped (large file)`
+                `${entry.path}: file too large`
               );
 
               return;
             }
 
-            sources.set(entry.path, text);
+            sources.set(entry.path, source);
           } catch (error) {
             warnings.push(
               `${entry.path}: ${
@@ -192,11 +177,8 @@ export async function analyzeGithubRepository(
 
   const output = await runLanguageAnalyzers({
     sources,
-
     availablePaths: new Set(
-      inventory.files.map(
-        (file) => file.path
-      )
+      inventory.files.map((file) => file.path)
     ),
   });
 
@@ -204,34 +186,32 @@ export async function analyzeGithubRepository(
     output.analyzedPaths
   );
 
-  const files = inventory.files.map(
+  const files: RepoFile[] = inventory.files.map(
     (file) => ({
       ...file,
 
-      analysisStatus: (
-        analyzed.has(file.path)
-          ? "analyzed"
-          : "indexed"
-      ) as "indexed" | "analyzed",
+      analysisStatus: analyzed.has(file.path)
+        ? "analyzed"
+        : "indexed",
 
-      analysisPrecision:
-        analyzed.has(file.path)
-          ? output.precisionByPath?.[file.path]
-          : undefined,
+      analysisPrecision: analyzed.has(file.path)
+        ? output.precisionByPath?.[file.path]
+        : undefined,
     })
   );
 
   const result: AnalysisResult = {
     ...inventory,
-
     files,
+
     connections: output.connections,
 
     totalCodeFiles: eligible.length,
     analyzedFiles: analyzed.size,
 
     partial:
-      analyzed.size !== eligible.length ||
+      analyzed.size < eligible.length ||
+      warnings.length > 0 ||
       output.warnings.length > 0,
 
     inventoryComplete: true,
@@ -248,10 +228,25 @@ export async function analyzeGithubRepository(
   });
 
   if (cache.size > 8) {
-    cache.delete(
-      cache.keys().next().value ?? key
-    );
+    const oldest =
+      cache.keys().next().value;
+
+    if (oldest) {
+      cache.delete(oldest);
+    }
   }
 
   return result;
+}
+
+export async function analyzeGithubRepository(
+  url: string,
+  ref?: string
+): Promise<AnalysisResult> {
+  const snapshot = await loadGithubSnapshot(
+    url,
+    ref
+  );
+
+  return analyzeGithubSnapshot(snapshot);
 }

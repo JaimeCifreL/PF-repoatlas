@@ -1,7 +1,11 @@
+
 "use client";
+
+import Link from "next/link";
 
 import {
   Activity,
+  Clock3,
   FolderTree,
   GitBranch,
   LayoutDashboard,
@@ -51,6 +55,7 @@ export function Sidebar({
   return (
     <aside className="w-full shrink-0 border-b border-[#1d2b38] bg-[#0d1420] lg:min-h-screen lg:w-[235px] lg:border-b-0 lg:border-r">
 
+      {/* LOGO */}
       <div className="flex h-[74px] items-center gap-3 border-b border-[#1d2b38] px-5">
 
         <span className="rounded-lg border border-[#147d70] bg-[#10312f] p-2">
@@ -74,6 +79,7 @@ export function Sidebar({
         </div>
       </div>
 
+      {/* NAVIGATION */}
       <nav className="space-y-1 px-3 py-7">
 
         <div className="mb-4 px-3 font-mono text-[10px] tracking-widest text-[#62778a]">
@@ -103,6 +109,23 @@ export function Sidebar({
             </button>
           )
         )}
+
+        {/* TIME MACHINE */}
+        <div className="mt-7 border-t border-[#243442] pt-6">
+
+          <div className="mb-4 px-3 font-mono text-[10px] tracking-widest text-[#62778a]">
+            CHANGE INTELLIGENCE
+          </div>
+
+          <Link
+            href="/time-machine"
+            className="flex w-full items-center gap-3 rounded-lg border border-[#246F5E] bg-[#10362E] px-3 py-3 text-sm text-[#75EACA] transition-colors hover:bg-[#185344]"
+          >
+            <Clock3 size={17}/>
+            Time Machine
+          </Link>
+        </div>
+
       </nav>
 
       <div className="hidden border-t border-[#1d2b38] px-5 py-5 font-mono text-[10px] text-[#637b8d] lg:block">

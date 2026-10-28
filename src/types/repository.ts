@@ -12,6 +12,7 @@ export type RepoFile = {
 
   language?: string;
   size?: number;
+  sha?: string;
 
   analysisStatus?: "indexed" | "analyzed";
   analysisPrecision?: "syntax" | "heuristic";

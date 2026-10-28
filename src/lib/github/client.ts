@@ -16,34 +16,45 @@ export type GithubSnapshot = {
   entries: GithubEntry[];
 };
 
+export type GithubRevisionList = {
+  repository: string;
+  defaultBranch: string;
+  branches: string[];
+  commits: Array<{
+    sha: string;
+    message: string;
+    date: string | null;
+  }>;
+};
+
 type TreeResponse = {
   sha: string;
   tree: GithubEntry[];
   truncated?: boolean;
 };
 
-export function parseGithubUrl(
-  input: string
-): {
+type RepositoryMetadata = {
+  default_branch: string;
+  private: boolean;
+};
+
+const API = "https://api.github.com";
+
+export function parseGithubUrl(input: string): {
   owner: string;
   repo: string;
 } {
-  const url = new URL(input);
-
-  if (
-    url.protocol !== "https:" ||
-    url.hostname.toLowerCase() !== "github.com"
-  ) {
-    throw new Error(
-      "Use an HTTPS URL on github.com."
-    );
-  }
+  const url = new URL(input.trim());
 
   const segments = url.pathname
     .split("/")
     .filter(Boolean);
 
-  if (segments.length !== 2) {
+  if (
+    url.protocol !== "https:" ||
+    url.hostname.toLowerCase() !== "github.com" ||
+    segments.length !== 2
+  ) {
     throw new Error(
       "Use https://github.com/owner/repo"
     );
@@ -56,12 +67,29 @@ export function parseGithubUrl(
     !/^[A-Za-z0-9-]+$/.test(owner) ||
     !/^[A-Za-z0-9._-]+$/.test(repo)
   ) {
-    throw new Error(
-      "Invalid GitHub repository name."
-    );
+    throw new Error("Invalid repository URL.");
   }
 
   return { owner, repo };
+}
+
+function cleanRef(value: string): string {
+  const ref = value.trim();
+
+  if (
+    !ref ||
+    ref.length > 255 ||
+    !/^[A-Za-z0-9_./-]+$/.test(ref) ||
+    ref.includes("..") ||
+    ref.endsWith("/") ||
+    ref.startsWith("/")
+  ) {
+    throw new Error(
+      "Invalid Git reference. Use a branch, tag or commit SHA."
+    );
+  }
+
+  return ref;
 }
 
 function headers(): HeadersInit {
@@ -88,16 +116,14 @@ async function github<T>(
   });
 
   if (!response.ok) {
-    const rate = response.headers.get(
+    const remaining = response.headers.get(
       "x-ratelimit-remaining"
     );
 
     if (
-      (
-        response.status === 403 ||
-        response.status === 429
-      ) &&
-      rate === "0"
+      (response.status === 403 ||
+        response.status === 429) &&
+      remaining === "0"
     ) {
       throw new Error(
         "GitHub rate limit reached. Configure GITHUB_TOKEN."
@@ -109,7 +135,26 @@ async function github<T>(
     );
   }
 
-  return await response.json() as T;
+  return (await response.json()) as T;
+}
+
+async function metadata(
+  owner: string,
+  repo: string
+): Promise<RepositoryMetadata> {
+  const result = await github<RepositoryMetadata>(
+    `${API}/repos/${owner}/${repo}`
+  );
+
+  // We do not expose server-token access to private
+  // repositories through a public endpoint.
+  if (result.private) {
+    throw new Error(
+      "Private repositories are not enabled in this version."
+    );
+  }
+
+  return result;
 }
 
 async function completeTree(
@@ -118,48 +163,44 @@ async function completeTree(
   treeSha: string
 ): Promise<GithubEntry[]> {
   const base =
-    `https://api.github.com/repos/` +
-    `${owner}/${repo}/git/trees/`;
+    `${API}/repos/${owner}/${repo}/git/trees/`;
 
-  const tree = await github<TreeResponse>(
-    `${base}${treeSha}?recursive=1`
+  const initial = await github<TreeResponse>(
+    `${base}${encodeURIComponent(treeSha)}?recursive=1`
   );
 
-  if (!tree.truncated) {
-    return tree.tree;
+  if (!initial.truncated) {
+    return initial.tree;
   }
 
   const entries: GithubEntry[] = [];
 
-  const queue = [
+  const queue: Array<{
+    sha: string;
+    prefix: string;
+  }> = [
     {
       sha: treeSha,
       prefix: "",
     },
   ];
 
-  for (
-    let i = 0;
-    i < queue.length;
-    i++
-  ) {
-    const item = queue[i];
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i];
 
-    const sub = await github<TreeResponse>(
-      base + item.sha
+    const subtree = await github<TreeResponse>(
+      base + encodeURIComponent(current.sha)
     );
 
-    if (sub.truncated) {
+    if (subtree.truncated) {
       throw new Error(
-        `Incomplete GitHub tree at ${
-          item.prefix || "/"
-        }`
+        `Incomplete GitHub tree at ${current.prefix || "/"}`
       );
     }
 
-    for (const entry of sub.tree) {
-      const fullPath = item.prefix
-        ? `${item.prefix}/${entry.path}`
+    for (const entry of subtree.tree) {
+      const fullPath = current.prefix
+        ? `${current.prefix}/${entry.path}`
         : entry.path;
 
       entries.push({
@@ -181,52 +222,85 @@ async function completeTree(
 
 export async function loadGithubSnapshot(
   url: string,
-  requestedBranch?: string
+  requestedRef?: string
 ): Promise<GithubSnapshot> {
   const { owner, repo } = parseGithubUrl(url);
 
-  const base =
-    `https://api.github.com/repos/${owner}/${repo}`;
+  const info = await metadata(owner, repo);
 
-  const metadata = await github<{
-    default_branch: string;
-  }>(base);
-
-  const branch =
-    requestedBranch?.trim() ||
-    metadata.default_branch;
-
-  const info = await github<{
-    commit: {
-      sha: string;
-    };
-  }>(
-    `${base}/branches/${encodeURIComponent(branch)}`
+  const ref = cleanRef(
+    requestedRef || info.default_branch
   );
 
-  const commitSha = info.commit.sha;
+  // Supports branches, tags and commit hashes.
+  const encodedRef = ref
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
 
   const commit = await github<{
-    tree: {
-      sha: string;
+    sha: string;
+    commit: {
+      tree: {
+        sha: string;
+      };
     };
   }>(
-    `${base}/git/commits/${commitSha}`
+    `${API}/repos/${owner}/${repo}/commits/${encodedRef}`
   );
 
   const entries = await completeTree(
     owner,
     repo,
-    commit.tree.sha
+    commit.commit.tree.sha
   );
 
   return {
     owner,
     repo,
     repository: `${owner}/${repo}`,
-    branch,
-    commitSha,
+    branch: ref,
+    commitSha: commit.sha,
     entries,
+  };
+}
+
+export async function listGithubRevisions(
+  url: string
+): Promise<GithubRevisionList> {
+  const { owner, repo } = parseGithubUrl(url);
+
+  const info = await metadata(owner, repo);
+
+  const base = `${API}/repos/${owner}/${repo}`;
+
+  const [branches, commits] = await Promise.all([
+    github<Array<{ name: string }>>(
+      `${base}/branches?per_page=50`
+    ),
+
+    github<Array<{
+      sha: string;
+      commit: {
+        message: string;
+        committer?: {
+          date?: string;
+        };
+      };
+    }>>(
+      `${base}/commits?per_page=25`
+    ),
+  ]);
+
+  return {
+    repository: `${owner}/${repo}`,
+    defaultBranch: info.default_branch,
+    branches: branches.map((item) => item.name),
+    commits: commits.map((item) => ({
+      sha: item.sha,
+      message: item.commit.message.split("\n")[0],
+      date: item.commit.committer?.date ?? null,
+    })),
   };
 }
 
@@ -234,21 +308,18 @@ export async function loadGithubText(
   snapshot: GithubSnapshot,
   entry: GithubEntry
 ): Promise<string> {
-  // Con token, leer los blobs desde la API.
-  // Permite acceso a repositorios privados autorizados.
   if (process.env.GITHUB_TOKEN) {
-    const data = await github<{
+    const result = await github<{
       encoding?: string;
       content?: string;
     }>(
-      `https://api.github.com/repos/` +
-      `${snapshot.owner}/${snapshot.repo}/` +
-      `git/blobs/${entry.sha}`
+      `${API}/repos/${snapshot.owner}/${snapshot.repo}` +
+      `/git/blobs/${encodeURIComponent(entry.sha)}`
     );
 
     if (
-      data.encoding !== "base64" ||
-      !data.content
+      result.encoding !== "base64" ||
+      !result.content
     ) {
       throw new Error(
         `Unsupported Git blob: ${entry.path}`
@@ -256,30 +327,29 @@ export async function loadGithubText(
     }
 
     return Buffer.from(
-      data.content,
+      result.content,
       "base64"
     ).toString("utf8");
   }
 
-  // Repositorios públicos: usar contenido raw.
-  const safePath = entry.path
+  const filePath = entry.path
     .split("/")
     .map(encodeURIComponent)
     .join("/");
 
-  const url =
+  const rawUrl =
     `https://raw.githubusercontent.com/` +
     `${snapshot.owner}/${snapshot.repo}/` +
-    `${snapshot.commitSha}/${safePath}`;
+    `${snapshot.commitSha}/${filePath}`;
 
-  const response = await fetch(url, {
+  const response = await fetch(rawUrl, {
     cache: "no-store",
     signal: AbortSignal.timeout(12_000),
   });
 
   if (!response.ok) {
     throw new Error(
-      `HTTP ${response.status}`
+      `Could not fetch ${entry.path}: HTTP ${response.status}`
     );
   }
 
