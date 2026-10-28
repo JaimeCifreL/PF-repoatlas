@@ -26,6 +26,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   impact?: ImpactResult | null;
+  cycleFocusIds: readonly string[] | null;
 };
 
 const COLORS = {
@@ -52,7 +53,12 @@ export default function RepoGraph3D({
   selectedId,
   onSelect,
   impact,
+  cycleFocusIds,
 }: Props) {
+  const cycleSet = useMemo(
+    () => new Set(cycleFocusIds ?? []),
+    [cycleFocusIds]
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
   
@@ -241,6 +247,12 @@ export default function RepoGraph3D({
           nodeOpacity={0.9}
           nodeColor={(node) => {
             const id = String(node.id);
+            
+            if (cycleFocusIds !== null) {
+              return cycleSet.has(id)
+                ? "#f4a261"
+                : "#293c4a";
+            }
 
             if (impact) {
               if (id === impact.selectedId) {
@@ -270,6 +282,15 @@ export default function RepoGraph3D({
           }}
                     
           linkColor={(link) => {
+            if (cycleFocusIds !== null) {
+              const source = endpointId(link.source);
+              const target = endpointId(link.target);
+
+              return cycleSet.has(source) && cycleSet.has(target)
+                ? "#f4a261"
+                : "#263847";
+            }
+
             if (impact) {
               if (!isImpactLink(link.source, link.target)) {
                 return "#263847";
@@ -291,18 +312,35 @@ export default function RepoGraph3D({
                 : "#243744";
           }}
 
-          linkWidth={(link) =>
-            impact
-              ? isImpactLink(link.source, link.target) ? 2.5 : 0.4
-              : isSelectedLink(link.source, link.target) ? 2 : 0.7
-          }
+          linkWidth={(link) => {
+            if (cycleFocusIds !== null) {
+              const highlighted =
+                cycleSet.has(endpointId(link.source)) &&
+                cycleSet.has(endpointId(link.target));
+
+              return highlighted ? 2.8 : 0.4;
+            }
+
+            if (impact) {
+              return isImpactLink(link.source, link.target)
+                ? 2.5
+                : 0.4;
+            }
+
+            return isSelectedLink(link.source, link.target)
+              ? 2
+              : 0.7;
+          }}
+
           linkOpacity={0.75}
           linkDirectionalArrowLength={3}
           linkDirectionalArrowRelPos={0.9}
           linkDirectionalParticles={(link) =>
-            impact
+            cycleFocusIds !== null || impact
               ? 0
-              : isSelectedLink(link.source, link.target) ? 2 : 0
+              : isSelectedLink(link.source, link.target)
+                ? 2
+                : 0
           }
           linkDirectionalParticleSpeed={0.005}
           linkDirectionalParticleWidth={2}

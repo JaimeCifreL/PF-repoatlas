@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createGraphIndex } from "@/lib/graph-core";
 import { analyzeImpact } from "@/lib/graph-impact";
 import dynamic from "next/dynamic";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Sidebar, type WorkspaceView } from "@/components/layout/Sidebar";
 const RepoGraph3D = dynamic(
   () => import("@/components/graph/RepoGraph3D"),
   { ssr: false }
@@ -18,9 +18,11 @@ import {
 } from "@/lib/sample-repository";
 import { FileInspector } from "@/components/inspector/FileInspector";
 import type { AnalysisResult } from "@/types/repository";
+import { ArchitectureOverview } from "@/components/architecture/ArchitectureOverview";
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>("graph");
+  const [activeView, setActiveView] = useState<WorkspaceView>("map");
   const [impactSourceId, setImpactSourceId] = useState<string | null>(null);
 
   const [repositoryUrl, setRepositoryUrl] = useState("");
@@ -28,6 +30,7 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [focusedCycleIndex, setFocusedCycleIndex] = useState<number | null>(null);
 
   const files = analysis?.files ?? sampleFiles;
   const connections = analysis?.connections ?? sampleConnections;
@@ -41,6 +44,8 @@ export default function Home() {
     () => calculateGraphMetrics(graphIndex),
     [graphIndex]
   );
+
+  const focusedCycleIds = focusedCycleIndex === null ? null : architectureMetrics.cycleGroups[focusedCycleIndex] ?? null;
 
   const impact = useMemo(
     () =>
@@ -82,6 +87,7 @@ export default function Home() {
       setAnalysis(result);
       setSelectedId(null);
       setImpactSourceId(null);
+      setFocusedCycleIndex(null);
     } catch (error) {
       setAnalysisError(
         error instanceof Error
@@ -101,7 +107,25 @@ export default function Home() {
     <div className="min-h-screen bg-[#080d14] text-[#e8eef5] lg:flex">
 
       {/* SIDEBAR */}
-      <Sidebar />
+      <Sidebar
+        activeView={activeView}
+        onChangeView={(view) => {
+          if (view === "impact") {
+            setFocusedCycleIndex(null);
+          }
+          setActiveView(view);
+          // Al abrir Impact Analysis, utilizar el archivo
+          // seleccionado si todavía no hay un análisis activo.
+          if (
+            view === "impact" &&
+            selectedId !== null &&
+            impactSourceId === null
+          ) {
+            setImpactSourceId(selectedId);
+          }
+        }}
+      />
+
 
       {/* MAIN CONTENT */}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -111,11 +135,57 @@ export default function Home() {
           <div className="flex items-center gap-2 text-xs text-[#778d9e]">
             <span>WORKSPACE</span>
             <span>/</span>
-            <span className="text-[#d0e0e9]">DEPENDENCY MAP</span>
+            <span className="text-[#d0e0e9]">
+              {activeView === "overview"
+                ? "ARCHITECTURE OVERVIEW"
+                : activeView === "impact"
+                  ? "IMPACT ANALYSIS"
+                  : "DEPENDENCY MAP"}
+            </span>
           </div>
         </header>
 
-        <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="px-5 lg:px-8">
+          <RepositorySearch
+            repositoryUrl={repositoryUrl}
+            onUrlChange={setRepositoryUrl}
+            onAnalyze={handleAnalyze}
+            isAnalyzing={isAnalyzing}
+            analysisError={analysisError}
+            analysis={analysis}
+          />
+        </div>
+
+        {activeView === "overview" && (
+          <ArchitectureOverview
+            metrics={architectureMetrics}
+            files={files}
+            repositoryName={analysis?.repository ?? null}
+            partial={analysis?.partial ?? false}
+            onInspect={(id) => {
+              setSelectedId(id);
+              setActiveView("map");
+            }}
+            onAnalyzeImpact={(id) => {
+              setFocusedCycleIndex(null);
+              setSelectedId(id);
+              setImpactSourceId(id);
+              setActiveView("impact");
+            }}
+            onFocusCycle={(index) => {
+              setFocusedCycleIndex(index);
+              setImpactSourceId(null);
+              setSelectedId(null);
+              setActiveView("map");
+            }}
+          />
+        )}
+
+        <div
+          className={`flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] ${
+            activeView === "overview" ? "hidden" : "grid"
+          }`}
+        >
 
           {/* GRAPH AREA */}
           <main className="flex min-w-0 flex-col p-5 lg:p-8">
@@ -126,12 +196,19 @@ export default function Home() {
                   01 / CARTOGRAPHER
                 </div>
                 <h1 className="text-2xl font-semibold tracking-tight lg:text-[30px]">
-                  Dependency graph
+                  {activeView === "impact" ? "Impact analysis" : "Dependency graph"}
                 </h1>
                 <p className="mt-2 max-w-xl text-sm text-[#8297a8]">
                   Explore module connections and understand how
                   your codebase is structured.
                 </p>
+                {activeView === "impact" && (
+                  <p className="mt-3 font-mono text-[11px] text-[#a0bdaf]">
+                    {impact
+                      ? `SOURCE: ${impact.selectedId} · ${impact.direct.length} DIRECT · ${impact.indirect.length} INDIRECT`
+                      : "SELECT A FILE AND RUN ANALYZE IMPACT FROM THE INSPECTOR"}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 font-mono text-[11px] text-[#4ad6b8]">
                 <span className="h-2 w-2 rounded-full bg-[#28d8ae]" />
@@ -165,16 +242,6 @@ export default function Home() {
               </div>
 
             </div>
-
-            {/* REPOSITORY SEARCH */}
-            <RepositorySearch
-              repositoryUrl={repositoryUrl}
-              onUrlChange={setRepositoryUrl}
-              onAnalyze={handleAnalyze}
-              isAnalyzing={isAnalyzing}
-              analysisError={analysisError}
-              analysis={analysis}
-            />
 
             {/* METRICS */}
             <div className="mt-7 grid grid-cols-3 gap-3">
@@ -218,6 +285,28 @@ export default function Home() {
                 </div>
               </div>
 
+              {focusedCycleIds !== null && (
+                <div className="absolute right-5 top-5 z-20 flex items-center gap-3 rounded-lg border border-[#815637] bg-[#251d1a]/95 px-4 py-3">
+                  <div>
+                    <div className="font-mono text-[10px] tracking-wider text-[#f4a261]">
+                      CIRCULAR GROUP FOCUS
+                    </div>
+
+                    <div className="mt-1 font-mono text-[10px] text-[#c7a58c]">
+                      {focusedCycleIds.length} FILES HIGHLIGHTED
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setFocusedCycleIndex(null)}
+                    className="cursor-pointer rounded-md border border-[#815637] px-3 py-2 font-mono text-[10px] text-[#ffd7b8] hover:bg-[#493021]"
+                  >
+                    CLEAR
+                  </button>
+                </div>
+              )}
+
               <div className="absolute inset-0">
                 {viewMode === "3d" ? (
                   <RepoGraph3D
@@ -227,6 +316,7 @@ export default function Home() {
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     impact={impact}
+                    cycleFocusIds={focusedCycleIds}
                   />
                 ) : (
                   
@@ -237,6 +327,7 @@ export default function Home() {
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     impact={impact}
+                    cycleFocusIds={focusedCycleIds}
                   />
 
                 )}
@@ -276,7 +367,10 @@ export default function Home() {
             repositoryName={analysis?.repository}
             onSelect={setSelectedId}
             impact={impact}
-            onAnalyzeImpact={setImpactSourceId}
+            onAnalyzeImpact={(id) => {
+              setFocusedCycleIndex(null);
+              setImpactSourceId(id);
+            }}
             onClearImpact={() => setImpactSourceId(null)}
           />
 

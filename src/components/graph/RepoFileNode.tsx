@@ -17,6 +17,7 @@ export type RepoFileNode = Node<
     isSelected: boolean;
     isRelated: boolean;
     impactLevel?: "source" | "direct" | "indirect" | null;
+    cycleHighlighted?: boolean;
   },
   "repoFile"
 >;
@@ -26,13 +27,15 @@ export default function RepoFileNodeView({
 }: NodeProps<RepoFileNode>) {
     
     const impactColor =
-    data.impactLevel === "source"
-        ? "#31e0b9"
-        : data.impactLevel === "direct"
-        ? "#eda65d"
-        : data.impactLevel === "indirect"
-            ? "#ae92f1"
-            : null;
+      data.cycleHighlighted
+        ? "#f4a261"
+        : data.impactLevel === "source"
+          ? "#31e0b9"
+          : data.impactLevel === "direct"
+            ? "#eda65d"
+            : data.impactLevel === "indirect"
+              ? "#ae92f1"
+              : null;
 
   return (
     <div

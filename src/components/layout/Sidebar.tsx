@@ -1,17 +1,45 @@
+"use client";
 
 import {
-  GitBranch,
-  Network,
-  LayoutDashboard,
-  FolderTree,
   Activity,
+  FolderTree,
+  GitBranch,
+  LayoutDashboard,
+  Network,
 } from "lucide-react";
 
-export function Sidebar() {
-  return (
-    <aside className="w-full border-b border-[#1d2b38] bg-[#0d1420] lg:min-h-screen lg:w-[235px] lg:shrink-0 lg:border-b-0 lg:border-r">
+export type WorkspaceView = "overview" | "map" | "impact";
 
-      {/* LOGOTIPO */}
+type SidebarProps = {
+  activeView: WorkspaceView;
+  onChangeView: (view: WorkspaceView) => void;
+};
+
+const navigation = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+  },
+  {
+    id: "map",
+    label: "Dependency map",
+    icon: Network,
+  },
+  {
+    id: "impact",
+    label: "Impact analysis",
+    icon: Activity,
+  },
+] as const;
+
+export function Sidebar({
+  activeView,
+  onChangeView,
+}: SidebarProps) {
+  return (
+    <aside className="w-full shrink-0 border-b border-[#1d2b38] bg-[#0d1420] lg:min-h-screen lg:w-[235px] lg:border-r lg:border-b-0">
+
       <div className="flex h-[74px] items-center gap-3 border-b border-[#1d2b38] px-5">
         <div className="rounded-lg border border-[#147d70] bg-[#10312f] p-2">
           <GitBranch size={19} className="text-[#23d1ad]" />
@@ -28,42 +56,53 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* NAVEGACIÓN */}
       <div className="px-3 py-7">
         <div className="mb-4 px-3 text-[10px] tracking-widest text-[#62778a]">
           WORKSPACE
         </div>
 
         <nav className="space-y-1">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const active = activeView === item.id;
 
-          <div className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-[#76899b]">
-            <LayoutDashboard size={17} />
-            Overview
-            <span className="ml-auto text-[9px]">SOON</span>
-          </div>
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onChangeView(item.id)}
+                aria-current={active ? "page" : undefined}
+                className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 text-left text-sm transition-colors ${
+                  active
+                    ? "border-[#185c57] bg-[#10312f] text-[#42e2bf]"
+                    : "border-transparent text-[#76899b] hover:bg-[#172431] hover:text-[#dceaf2]"
+                }`}
+              >
+                <Icon size={17} />
 
-          <div className="flex items-center gap-3 rounded-lg border border-[#185c57] bg-[#10312f] px-3 py-3 text-sm text-[#42e2bf]">
-            <Network size={17} />
-            Dependency map
-            <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#42e2bf]" />
-          </div>
+                <span>{item.label}</span>
 
-          <div className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-[#76899b]">
-            <Activity size={17} />
-            Impact analysis
-            <span className="ml-auto text-[9px]">SOON</span>
-          </div>
+                {active && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#42e2bf]" />
+                )}
+              </button>
+            );
+          })}
 
-          <div className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-[#76899b]">
+          <div
+            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-[#526778]"
+            aria-disabled="true"
+          >
             <FolderTree size={17} />
             File explorer
-            <span className="ml-auto text-[9px]">SOON</span>
-          </div>
 
+            <span className="ml-auto font-mono text-[9px]">
+              SOON
+            </span>
+          </div>
         </nav>
       </div>
 
-      {/* ESTADO DEL ENTORNO */}
       <div className="mx-4 border-t border-[#253342] pt-6">
         <div className="text-[10px] tracking-widest text-[#62778a]">
           ENVIRONMENT
@@ -78,7 +117,6 @@ export function Sidebar() {
           v0.1.0 / LOCAL
         </div>
       </div>
-
     </aside>
   );
 }

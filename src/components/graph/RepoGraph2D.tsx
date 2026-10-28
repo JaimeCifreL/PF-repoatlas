@@ -31,6 +31,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   impact: ImpactResult | null;
+  cycleFocusIds: readonly string[] | null;
 };
 
 const nodeTypes = {
@@ -49,9 +50,14 @@ export function RepoGraph2D({
   selectedId,
   onSelect,
   impact,
+  cycleFocusIds,
 }: Props) {
 
   // 1. Calcular las conexiones de cada archivo.
+  const cycleSet = useMemo(
+    () => new Set(cycleFocusIds ?? []),
+    [cycleFocusIds]
+  );
   const baseNodes = useMemo<RepoFileNode[]>(() => {
     const degrees = new Map<string, number>();
 
@@ -130,38 +136,45 @@ export function RepoGraph2D({
 
   // 5. Actualizar la apariencia sin cambiar posiciones.
   
-    const nodes = useMemo<RepoFileNode[]>(() => {
+  const nodes = useMemo<RepoFileNode[]>(() => {
     return positionedNodes.map((node) => {
-        let impactLevel:
+      const inFocusedCycle = cycleSet.has(node.id);
+
+      let impactLevel:
         | "source"
         | "direct"
         | "indirect"
         | null = null;
 
-        if (impact) {
+      if (impact && cycleFocusIds === null) {
         if (node.id === impact.selectedId) {
-            impactLevel = "source";
+          impactLevel = "source";
         } else if (impact.depthById.get(node.id) === 1) {
-            impactLevel = "direct";
+          impactLevel = "direct";
         } else if (impact.depthById.has(node.id)) {
-            impactLevel = "indirect";
+          impactLevel = "indirect";
         }
-        }
+      }
 
-        return {
+      const isRelated =
+        cycleFocusIds !== null
+          ? inFocusedCycle
+          : impact
+            ? impactLevel !== null
+            : selectedId === null || relatedIds.has(node.id);
+
+      return {
         ...node,
         data: {
-            ...node.data,
-            isSelected: node.id === selectedId,
-            isRelated: impact
-            ? impactLevel !== null
-            : selectedId === null || relatedIds.has(node.id),
-            impactLevel,
+          ...node.data,
+          isSelected: node.id === selectedId,
+          isRelated,
+          impactLevel,
+          cycleHighlighted: inFocusedCycle,
         },
-        };
+      };
     });
-    }, [positionedNodes, selectedId, relatedIds, impact]);
-
+  }, [ positionedNodes, selectedId, relatedIds, impact, cycleFocusIds, cycleSet,]);
 
   // 6. Destacar las conexiones seleccionadas.
   
