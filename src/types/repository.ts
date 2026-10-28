@@ -9,10 +9,12 @@ export type RepoFile = {
   name: string;
   path: string;
   kind: RepoFileKind;
-  analysisStatus?: "indexed" | "analyzed";
 
-  // Se completará al añadir más lenguajes.
   language?: string;
+  size?: number;
+
+  analysisStatus?: "indexed" | "analyzed";
+  analysisPrecision?: "syntax" | "heuristic";
 };
 
 export type RepoConnection = readonly [
@@ -25,12 +27,16 @@ export type RepositoryGraph = {
   connections: readonly RepoConnection[];
 };
 
-// Resultado enviado por el analizador de GitHub.
 export type AnalysisResult = RepositoryGraph & {
   repository: string;
   branch: string;
+  commitSha?: string;
+  directories?: string[];
+
   totalCodeFiles: number;
   analyzedFiles: number;
+
   partial: boolean;
+  inventoryComplete?: boolean;
   warnings: string[];
 };

@@ -1,36 +1,49 @@
 
 import {
-  analyzeGitHubRepository,
-  AnalysisError,
-} from "@/lib/github-analyzer";
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
+import {
+  analyzeGithubRepository,
+} from "../../../lib/github/analyze";
 
-export async function GET(request: Request) {
-  const url = new URL(request.url).searchParams.get("url");
+export async function GET(
+  request: NextRequest
+) {
+  const url =
+    request.nextUrl.searchParams.get("url");
+
+  const branch =
+    request.nextUrl.searchParams.get("branch") ||
+    undefined;
 
   if (!url) {
-    return Response.json(
-      { error: "Debes indicar una URL de GitHub." },
+    return NextResponse.json(
+      {
+        error:
+          "Missing GitHub repository URL.",
+      },
       { status: 400 }
     );
   }
 
   try {
-    const result = await analyzeGitHubRepository(url);
-    return Response.json(result);
+    return NextResponse.json(
+      await analyzeGithubRepository(
+        url,
+        branch
+      )
+    );
   } catch (error) {
-    if (error instanceof AnalysisError) {
-      return Response.json(
-        { error: error.message },
-        { status: error.status }
-      );
-    }
-
-    console.error("RepoAtlas analysis error:", error);
-
-    return Response.json(
-      { error: "No se pudo completar el análisis." },
-      { status: 500 }
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to analyze repository.",
+      },
+      { status: 502 }
     );
   }
 }

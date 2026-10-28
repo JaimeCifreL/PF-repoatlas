@@ -1,7 +1,10 @@
 
 "use client";
 
-import { useMemo } from "react";
+import {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   ReactFlow,
@@ -15,38 +18,45 @@ import RepoFileNodeView, {
   type RepoFileNode,
 } from "./RepoFileNode";
 
-import { layoutGraph } from "@/lib/graph-layout";
+import {
+  layoutGraph,
+} from "../../lib/graph-layout";
 
 import {
   connectionKey,
   type ImpactResult,
-} from "@/lib/graph-impact";
+} from "../../lib/graph-impact";
 
 import type {
   RepoFile,
   RepoConnection,
-} from "@/types/repository";
+} from "../../types/repository";
 
-import type { FolderGrouping } from "@/lib/folder-groups";
-import { getFolderColor } from "@/lib/folder-visuals";
+import type {
+  FolderGrouping,
+} from "../../lib/folder-groups";
+
+import {
+  getFolderColor,
+} from "../../lib/folder-visuals";
 
 type Props = {
   files: readonly RepoFile[];
   connections: readonly RepoConnection[];
-
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-
   impact: ImpactResult | null;
   cycleFocusIds: readonly string[] | null;
-
   folderGrouping: FolderGrouping;
   visibleFolderIds: ReadonlySet<string> | null;
   colorByFolder: boolean;
 };
 
+// Stable, memoized React Flow node component.
+const MemoFileNode = memo(RepoFileNodeView);
+
 const nodeTypes = {
-  repoFile: RepoFileNodeView,
+  repoFile: MemoFileNode,
 };
 
 const COLORS: Record<RepoFile["kind"], string> = {
@@ -67,13 +77,12 @@ export function RepoGraph2D({
   colorByFolder,
 }: Props) {
 
-  // 1. Grupo circular seleccionado.
   const cycleSet = useMemo(
     () => new Set(cycleFocusIds ?? []),
     [cycleFocusIds]
   );
 
-  // 2. Construir los nodos originales.
+  // Build nodes only when the graph structure changes.
   const baseNodes = useMemo<RepoFileNode[]>(() => {
     const degrees = new Map<string, number>();
 
@@ -83,17 +92,24 @@ export function RepoGraph2D({
 
     for (const [source, target] of connections) {
       if (degrees.has(source)) {
-        degrees.set(source, (degrees.get(source) ?? 0) + 1);
+        degrees.set(
+          source,
+          (degrees.get(source) ?? 0) + 1
+        );
       }
 
       if (degrees.has(target)) {
-        degrees.set(target, (degrees.get(target) ?? 0) + 1);
+        degrees.set(
+          target,
+          (degrees.get(target) ?? 0) + 1
+        );
       }
     }
 
     return files.map((file) => {
       const degree = degrees.get(file.id) ?? 0;
-      const size = 84 + Math.min(degree, 5) * 10;
+      const size =
+        84 + Math.min(degree, 5) * 10;
 
       return {
         id: file.id,
@@ -111,26 +127,25 @@ export function RepoGraph2D({
     });
   }, [files, connections]);
 
-  // 3. Conexiones originales.
   const baseEdges = useMemo<Edge[]>(() => {
     return connections.map(([source, target]) => ({
-      id: `${source}->${target}`,
+      id: connectionKey(source, target),
       source,
       target,
       type: "default",
     }));
   }, [connections]);
 
-  // 4. Layout independiente de los filtros visuales.
-  const positionedNodes = useMemo(() => {
-    return layoutGraph(baseNodes, baseEdges);
-  }, [baseNodes, baseEdges]);
+  // Do not recalculate layout when selecting a node.
+  const positionedNodes = useMemo(
+    () => layoutGraph(baseNodes, baseEdges),
+    [baseNodes, baseEdges]
+  );
 
-  // 5. Archivos relacionados con el seleccionado.
   const relatedIds = useMemo(() => {
     const related = new Set<string>();
 
-    if (selectedId === null) {
+    if (!selectedId) {
       return related;
     }
 
@@ -149,10 +164,10 @@ export function RepoGraph2D({
     return related;
   }, [selectedId, connections]);
 
-  // 6. Aplicar colores, ciclos, impacto y filtros.
+  // Appearance changes do not affect the layout.
   const nodes = useMemo<RepoFileNode[]>(() => {
     return positionedNodes.map((node) => {
-      const inFocusedCycle = cycleSet.has(node.id);
+      const inCycle = cycleSet.has(node.id);
 
       let impactLevel:
         | "source"
@@ -163,19 +178,24 @@ export function RepoGraph2D({
       if (impact && cycleFocusIds === null) {
         if (node.id === impact.selectedId) {
           impactLevel = "source";
-        } else if (impact.depthById.get(node.id) === 1) {
+        } else if (
+          impact.depthById.get(node.id) === 1
+        ) {
           impactLevel = "direct";
-        } else if (impact.depthById.has(node.id)) {
+        } else if (
+          impact.depthById.has(node.id)
+        ) {
           impactLevel = "indirect";
         }
       }
 
-      const isRelated =
+      const related =
         cycleFocusIds !== null
-          ? inFocusedCycle
+          ? inCycle
           : impact
             ? impactLevel !== null
-            : selectedId === null || relatedIds.has(node.id);
+            : selectedId === null ||
+              relatedIds.has(node.id);
 
       const hidden =
         visibleFolderIds !== null &&
@@ -190,32 +210,33 @@ export function RepoGraph2D({
         hidden,
         data: {
           ...node.data,
-
           color: colorByFolder
             ? getFolderColor(folderId)
             : node.data.color,
-
-          isSelected: node.id === selectedId,
-          isRelated,
+          isSelected:
+            node.id === selectedId,
+          isRelated: related,
           impactLevel,
-          cycleHighlighted: inFocusedCycle,
+          cycleHighlighted: inCycle,
         },
       };
     });
   }, [
     positionedNodes,
+    cycleSet,
+    cycleFocusIds,
+    impact,
     selectedId,
     relatedIds,
-    impact,
-    cycleFocusIds,
-    cycleSet,
-    folderGrouping,
     visibleFolderIds,
+    folderGrouping,
     colorByFolder,
   ]);
 
-  // 7. Aplicar el mismo filtro a las conexiones.
   const edges = useMemo<Edge[]>(() => {
+    const allowAnimation =
+      baseEdges.length < 100;
+
     return baseEdges.map((edge) => {
       const hidden =
         visibleFolderIds !== null &&
@@ -224,7 +245,7 @@ export function RepoGraph2D({
           !visibleFolderIds.has(edge.target)
         );
 
-      // Prioridad 1: dependencias circulares.
+      // Circular-dependency focus.
       if (cycleFocusIds !== null) {
         const highlighted =
           cycleSet.has(edge.source) &&
@@ -235,20 +256,31 @@ export function RepoGraph2D({
           hidden,
           animated: false,
           style: {
-            stroke: highlighted ? "#f4a261" : "#293947",
-            strokeWidth: highlighted ? 2.8 : 0.8,
-            opacity: highlighted ? 1 : 0.12,
+            stroke: highlighted
+              ? "#f4a261"
+              : "#293947",
+            strokeWidth: highlighted
+              ? 2.8
+              : 0.8,
+            opacity: highlighted
+              ? 1
+              : 0.12,
           },
         };
       }
 
-      // Prioridad 2: análisis de impacto.
+      // Impact-analysis focus.
       if (impact) {
-        const highlighted = impact.highlightedEdges.has(
-          connectionKey(edge.source, edge.target)
-        );
+        const highlighted =
+          impact.highlightedEdges.has(
+            connectionKey(
+              edge.source,
+              edge.target
+            )
+          );
 
-        const depth = impact.depthById.get(edge.source);
+        const depth =
+          impact.depthById.get(edge.source);
 
         return {
           ...edge,
@@ -260,14 +292,16 @@ export function RepoGraph2D({
                 ? "#eda65d"
                 : "#ae92f1"
               : "#293947",
-
-            strokeWidth: highlighted ? 2.7 : 0.8,
-            opacity: highlighted ? 1 : 0.12,
+            strokeWidth: highlighted
+              ? 2.7
+              : 0.8,
+            opacity: highlighted
+              ? 1
+              : 0.12,
           },
         };
       }
 
-      // Prioridad 3: selección normal.
       const selectedConnection =
         edge.source === selectedId ||
         edge.target === selectedId;
@@ -275,16 +309,19 @@ export function RepoGraph2D({
       return {
         ...edge,
         hidden,
-        animated: selectedConnection,
+        animated:
+          allowAnimation &&
+          selectedConnection,
         style: {
           stroke: selectedConnection
             ? "#30e6c1"
             : "#365566",
-
-          strokeWidth: selectedConnection ? 2 : 1.2,
-
+          strokeWidth: selectedConnection
+            ? 2
+            : 1.2,
           opacity:
-            selectedId !== null && !selectedConnection
+            selectedId !== null &&
+            !selectedConnection
               ? 0.25
               : 0.9,
         },
@@ -304,13 +341,20 @@ export function RepoGraph2D({
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
-      onNodeClick={(_, node) => onSelect(node.id)}
-      onPaneClick={() => onSelect(null)}
+      onNodeClick={(_, node) =>
+        onSelect(node.id)
+      }
+      onPaneClick={() =>
+        onSelect(null)
+      }
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable
+      onlyRenderVisibleElements
       fitView
-      fitViewOptions={{ padding: 0.2 }}
+      fitViewOptions={{
+        padding: 0.2,
+      }}
       minZoom={0.05}
       maxZoom={2}
     >
@@ -321,7 +365,7 @@ export function RepoGraph2D({
         size={1}
       />
 
-      <Controls showInteractive={false} />
+      <Controls showInteractive={false}/>
     </ReactFlow>
   );
 }
