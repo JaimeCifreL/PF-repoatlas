@@ -4,6 +4,6 @@ Incluye análisis de impacto de cambios, detección de dependencias circulares, 
 
 Su funcionalidad **Architecture Time Machine** permite comparar commits y ramas de GitHub para identificar cómo evoluciona la estructura de un proyecto, detectando archivos y dependencias añadidas, modificadas o eliminadas.
 
-**Tecnologías:** Next.js · React · TypeScript · Tailwind CSS · React Flow · Three.js · GitHub API
+Tecnologías: [Next.js, React, TypeScript, Tailwind CSS, React Flow, Three.js, GitHub API]
 
 **Objetivo:** facilitar la comprensión de proyectos de software, identificar componentes críticos y visualizar el impacto arquitectónico de los cambios en el código.
