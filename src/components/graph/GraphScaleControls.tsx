@@ -28,7 +28,6 @@ type Props = {
   expandedModules: readonly ExpandedModule[];
   canFocus: boolean;
   warning: string | null;
-
   onChangeMode: (mode: GraphScaleMode) => void;
   onCollapseAll: () => void;
   onCollapseModule: (id: string) => void;
@@ -60,29 +59,27 @@ export function GraphScaleControls({
   onCollapseModule,
 }: Props) {
   return (
-    <section className="mt-4 rounded-lg border border-[#294050] bg-[#101b28] p-4">
+    <section className="mt-3 rounded-lg border border-[#294050] bg-[#101b28] px-3 py-3">
 
       <div className="flex flex-wrap items-center justify-between gap-3">
 
         <div className="flex items-center gap-2">
           <Layers3
-            size={16}
+            size={15}
             className="text-[#38dcb8]"
           />
 
-          <span className="font-mono text-[11px] font-semibold tracking-wider text-[#c2dbe4]">
+          <span className="font-mono text-[10px] font-semibold tracking-wider text-[#c2dbe4]">
             GRAPH DETAIL
           </span>
         </div>
 
         <div className="flex flex-wrap gap-1 rounded-md border border-[#304453] bg-[#0b1520] p-1">
-
           {options.map((option) => {
             const disabled =
               (option.value === "files" &&
                 totalFiles > maxAllFiles) ||
-              (option.value === "focus" &&
-                !canFocus);
+              (option.value === "focus" && !canFocus);
 
             return (
               <button
@@ -111,61 +108,49 @@ export function GraphScaleControls({
             );
           })}
         </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] text-[#8aa4b4]">
+          <span>
+            {resolvedMode.toUpperCase()}
+          </span>
+
+          <span>
+            {displayedFiles.toLocaleString()} /
+            {" "}{totalFiles.toLocaleString()} NODES
+          </span>
+
+          <span>
+            {displayedConnections.toLocaleString()} /
+            {" "}{totalConnections.toLocaleString()} EDGES
+          </span>
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] text-[#8aa4b4]">
-        <span>
-          MODE: {resolvedMode.toUpperCase()}
-        </span>
+      {expandedModules.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#293947] pt-3">
 
-        <span>
-          NODES: {displayedFiles.toLocaleString()} /
-          {" "}{totalFiles.toLocaleString()}
-        </span>
+          <button
+            type="button"
+            onClick={onCollapseAll}
+            className="flex cursor-pointer items-center gap-2 rounded border border-[#375968] px-3 py-2 font-mono text-[10px] text-[#43d8b6]"
+          >
+            <Minimize2 size={13}/>
+            COLLAPSE ALL
+          </button>
 
-        <span>
-          EDGES: {displayedConnections.toLocaleString()} /
-          {" "}{totalConnections.toLocaleString()}
-        </span>
-      </div>
-
-      {resolvedMode === "modules" && (
-        <div className="mt-3 border-t border-[#293947] pt-3">
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono text-[10px] text-[#7996a5]">
-              CLICK A MODULE TO EXPAND IT
-            </span>
-
-            {expandedModules.length > 0 && (
-              <button
-                type="button"
-                onClick={onCollapseAll}
-                className="flex cursor-pointer items-center gap-2 font-mono text-[10px] text-[#43d8b6]"
-              >
-                <Minimize2 size={13}/>
-                COLLAPSE ALL
-              </button>
-            )}
-          </div>
-
-          {expandedModules.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {expandedModules.map((group) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  title={`Collapse ${group.path}`}
-                  onClick={() =>
-                    onCollapseModule(group.id)
-                  }
-                  className="cursor-pointer rounded border border-[#375968] bg-[#162c37] px-3 py-2 font-mono text-[10px] text-[#b7d5df]"
-                >
-                  {group.path} ×
-                </button>
-              ))}
-            </div>
-          )}
+          {expandedModules.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              title={`Collapse ${group.path}`}
+              onClick={() =>
+                onCollapseModule(group.id)
+              }
+              className="cursor-pointer rounded border border-[#375968] bg-[#162c37] px-3 py-2 font-mono text-[10px] text-[#b7d5df]"
+            >
+              {group.path} ×
+            </button>
+          ))}
         </div>
       )}
 

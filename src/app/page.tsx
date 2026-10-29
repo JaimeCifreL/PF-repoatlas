@@ -630,7 +630,7 @@ export default function Home() {
       <div className="flex min-w-0 flex-1 flex-col">
 
         {/* TOP BAR */}
-        <header className="flex min-h-[74px] flex-wrap items-center justify-between gap-3 border-b border-[#1d2b38] px-5 py-3 lg:px-8">
+        <header className="flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-b border-[#1d2b38] px-5 py-2 lg:px-8">
 
           <div className="text-xs text-[#778d9e]">
             WORKSPACE /{" "}
@@ -675,38 +675,106 @@ export default function Home() {
             </div>
           )}
         </header>
-
+        
         {/* REPOSITORY SEARCH */}
         <div className="px-5 lg:px-8">
-
-          <RepositorySearch
-            repositoryUrl={repositoryUrl}
-            onUrlChange={setRepositoryUrl}
-            onAnalyze={handleAnalyze}
-            isAnalyzing={isAnalyzing}
-            analysisError={analysisError}
-            analysis={analysis}
-          />
-
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="branch-input"
-              className="font-mono text-[10px] text-[#8da8b7]"
-            >
-              GIT BRANCH
-            </label>
-
-            <input
-              id="branch-input"
-              value={branch}
-              onChange={(event) =>
-                setBranch(event.target.value)
+          
+          <details
+            key={
+              analysis
+                ? `loaded-${analysis.repository}-${analysis.commitSha ?? analysis.branch}`
+                : "initial"
+            }
+            ref={(element) => {
+              if (element && !element.dataset.initialized) {
+                element.open = !analysis;
+                element.dataset.initialized = "true";
               }
-              placeholder="Default branch"
-              className="rounded border border-[#304453] bg-[#101b27] px-3 py-2 font-mono text-[11px] text-[#d6e8ed] outline-none"
-            />
-          </div>
+            }}
+            className="group mt-3 rounded-lg border border-[#263947] bg-[#101b27]"
+          >
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3 marker:hidden">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="font-mono text-[10px] text-[#39d9b5]">
+                  REPOSITORY
+                </span>
+
+                <span className="min-w-0 break-all font-mono text-xs text-[#dcecf0]">
+                  {analysis?.repository ?? "Select a GitHub repository"}
+                </span>
+
+                {analysis && (
+                  <span className="rounded border border-[#305448] px-2 py-1 font-mono text-[10px] text-[#8db6a8]">
+                    {analysis.branch}
+                  </span>
+                )}
+              </div>
+
+              <span className="font-mono text-[10px] text-[#84a2b3] group-open:text-[#55dfbb]">
+                {analysis ? "CHANGE / DETAILS" : "CONFIGURE"}
+              </span>
+            </summary>
+
+            <div className="border-t border-[#263947] px-3 pb-4">
+              <RepositorySearch
+                repositoryUrl={repositoryUrl}
+                onUrlChange={setRepositoryUrl}
+                onAnalyze={handleAnalyze}
+                isAnalyzing={isAnalyzing}
+                analysisError={analysisError}
+                analysis={analysis}
+              />
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor="branch-input"
+                  className="font-mono text-[10px] text-[#8da8b7]"
+                >
+                  GIT BRANCH
+                </label>
+
+                <input
+                  id="branch-input"
+                  value={branch}
+                  onChange={(event) =>
+                    setBranch(event.target.value)
+                  }
+                  placeholder="Default branch"
+                  className="rounded border border-[#304453] bg-[#101b27] px-3 py-2 font-mono text-[11px] text-[#d6e8ed] outline-none"
+                />
+              </div>
+            </div>
+          </details>
+
+          {analysis && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 font-mono text-[10px] text-[#819baa]">
+              <span>
+                {analysis.files.length.toLocaleString()} FILES
+              </span>
+
+              <span>
+                {analysis.analyzedFiles.toLocaleString()} ANALYZED
+              </span>
+
+              <span>
+                {analysis.connections.length.toLocaleString()} CONNECTIONS
+              </span>
+
+              <span
+                className={
+                  analysis.partial
+                    ? "text-[#e6b77b]"
+                    : "text-[#57dcb6]"
+                }
+              >
+                {analysis.partial
+                  ? "PARTIAL ANALYSIS"
+                  : "ANALYSIS COMPLETE"}
+              </span>
+            </div>
+          )}
         </div>
+
         
         {/* ARCHITECTURE OVERVIEW */}
         {activeView === "overview" && (
@@ -762,7 +830,7 @@ export default function Home() {
           }`}
         >
 
-          <main className="flex min-w-0 flex-col p-5 lg:p-8">
+          <main className="flex min-w-0 flex-col p-4 lg:p-5">
 
             {/* GRAPH HEADER */}
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -811,36 +879,38 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ORIGINAL METRICS */}
-            <div className="mt-7 grid grid-cols-3 gap-3">
+            
+            {/* GRAPH METRICS */}
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-[#263947] bg-[#101925] px-4 py-3">
               {[
                 {
-                  title: "FILES",
+                  label: "FILES",
                   value: files.length,
                 },
                 {
-                  title: "CONNECTIONS",
+                  label: "CONNECTIONS",
                   value: connections.length,
                 },
                 {
-                  title: "CYCLE GROUPS",
+                  label: "CYCLE GROUPS",
                   value: architectureMetrics.cycleGroups.length,
                 },
               ].map((metric) => (
                 <div
-                  key={metric.title}
-                  className="rounded-lg border border-[#233140] bg-[#101925] p-4"
+                  key={metric.label}
+                  className="flex items-center gap-2"
                 >
-                  <div className="font-mono text-[10px] tracking-wider text-[#7890a3]">
-                    {metric.title}
-                  </div>
+                  <span className="font-mono text-[10px] tracking-wide text-[#829bab]">
+                    {metric.label}
+                  </span>
 
-                  <div className="mt-2 font-mono text-2xl text-[#e4f0f5]">
+                  <span className="font-mono text-sm font-semibold text-[#dceef1]">
                     {metric.value.toLocaleString()}
-                  </div>
+                  </span>
                 </div>
               ))}
             </div>
+
 
             {/* GRAPH SCALE */}
             <GraphScaleControls
@@ -871,16 +941,34 @@ export default function Home() {
               }}
             />
 
+            
             {/* FOLDER CONTROLS */}
-            <FolderGraphControls
-              grouping={folderGrouping}
-              depth={folderDepth}
-              selectedFolderId={selectedFolderId}
-              colorByFolder={colorByFolder}
-              onDepthChange={changeFolderDepth}
-              onFolderChange={changeFolderSelection}
-              onColorModeChange={setColorByFolder}
-            />
+            <details className="group mt-2 rounded-lg border border-[#294050] bg-[#101b28]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-mono text-[10px] tracking-wider text-[#a3bac8] marker:hidden hover:text-[#63dfbc]">
+                <span>FOLDER FILTERS & DISPLAY OPTIONS</span>
+
+                <span className="text-[#44d8b5] group-open:hidden">
+                  SHOW
+                </span>
+
+                <span className="hidden text-[#44d8b5] group-open:inline">
+                  HIDE
+                </span>
+              </summary>
+
+              <div className="border-t border-[#294050] px-3 pb-3">
+                <FolderGraphControls
+                  grouping={folderGrouping}
+                  depth={folderDepth}
+                  selectedFolderId={selectedFolderId}
+                  colorByFolder={colorByFolder}
+                  onDepthChange={changeFolderDepth}
+                  onFolderChange={changeFolderSelection}
+                  onColorModeChange={setColorByFolder}
+                />
+              </div>
+            </details>
+
 
             {/* INTERACTIVE CANVAS */}
             <div className="relative mt-5 min-h-[530px] flex-1 overflow-hidden rounded-xl border border-[#263442] bg-[#0a121c]">
