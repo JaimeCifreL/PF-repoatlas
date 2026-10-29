@@ -8,7 +8,7 @@ import {
 } from "react";
 
 import dynamic from "next/dynamic";
-
+import { LanguageDistribution } from "../components/LanguageDistribution";
 import {
   Sidebar,
   type WorkspaceView,
@@ -707,28 +707,33 @@ export default function Home() {
             />
           </div>
         </div>
-
+        
         {/* ARCHITECTURE OVERVIEW */}
         {activeView === "overview" && (
-          <ArchitectureOverview
-            folderGrouping={folderGrouping}
-            folderDepth={folderDepth}
-            onFolderDepthChange={changeFolderDepth}
-            metrics={architectureMetrics}
-            files={files}
-            repositoryName={
-              analysis?.repository ?? null
-            }
-            partial={analysis?.partial ?? false}
-            onInspect={(id) =>
-              navigateToFile(id, "map")
-            }
-            onAnalyzeImpact={(id) =>
-              navigateToFile(id, "impact")
-            }
-            onFocusCycle={focusCycle}
-          />
+          <div className="space-y-6 px-5 py-6 lg:px-8">
+
+            <ArchitectureOverview
+              folderGrouping={folderGrouping}
+              folderDepth={folderDepth}
+              onFolderDepthChange={changeFolderDepth}
+              metrics={architectureMetrics}
+              files={files}
+              repositoryName={analysis?.repository ?? null}
+              partial={analysis?.partial ?? false}
+              onInspect={(id) =>
+                navigateToFile(id, "map")
+              }
+              onAnalyzeImpact={(id) =>
+                navigateToFile(id, "impact")
+              }
+              onFocusCycle={focusCycle}
+            />
+
+            <LanguageDistribution files={files} />
+
+          </div>
         )}
+
 
         {/* FILE EXPLORER */}
         {activeView === "files" && (

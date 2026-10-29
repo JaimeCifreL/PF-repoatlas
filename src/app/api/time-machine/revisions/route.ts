@@ -8,8 +8,6 @@ import {
   listGithubRevisions,
 } from "../../../../lib/github/client";
 
-export const runtime = "nodejs";
-
 export async function GET(
   request: NextRequest
 ) {

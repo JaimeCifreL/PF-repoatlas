@@ -16,8 +16,6 @@ import {
   compareRepositoryVersions,
 } from "../../../lib/time-machine/compare";
 
-export const runtime = "nodejs";
-
 export async function GET(
   request: NextRequest
 ) {
@@ -38,7 +36,6 @@ export async function GET(
   }
 
   try {
-    // Resolve both references to immutable commits.
     const [beforeSnapshot, afterSnapshot] =
       await Promise.all([
         loadGithubSnapshot(url, before || undefined),
