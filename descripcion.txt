@@ -1,8 +1,10 @@
-Aplicación web desarrollada con **Next.js, React, TypeScript, React Flow y Three.js** que permite analizar repositorios de GitHub y visualizar sus dependencias mediante grafos interactivos en 2D y 3D.
+Análisis y visualización interactiva de arquitecturas y dependencias de repositorios GitHub en 2D y 3D.
+
+Aplicación web desarrollada con Next.js, React, TypeScript, React Flow y Three.js que permite analizar repositorios de GitHub y visualizar sus dependencias mediante grafos interactivos en 2D y 3D.
 
 Incluye análisis de impacto de cambios, detección de dependencias circulares, métricas de arquitectura, explorador de archivos y soporte para múltiples lenguajes de programación.
 
-Su funcionalidad **Architecture Time Machine** permite comparar commits y ramas de GitHub para identificar cómo evoluciona la estructura de un proyecto, detectando archivos y dependencias añadidas, modificadas o eliminadas.
+Su funcionalidad Architecture Time Machine permite comparar commits y ramas de GitHub para identificar cómo evoluciona la estructura de un proyecto, detectando archivos y dependencias añadidas, modificadas o eliminadas.
 
 Tecnologías: [Next.js, React, TypeScript, Tailwind CSS, React Flow, Three.js, GitHub API]
 
